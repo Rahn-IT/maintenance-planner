@@ -1,0 +1,24 @@
+{% extends 'layout.html' %} {% block title %} Edit Action Plan {% endblock %} {%
+block content %}
+    <div>
+        <form>
+            <label for="name">Name:</label>
+
+            <input
+                type="text"
+                id="name"
+                name="name"
+                value="{{ name }}"
+            />
+            <table id="items">
+                <th><td>name</td></th>
+                <!--Template Row-->
+                <tr class="template"><td><input  type="text" name="items" form=""></td><td><button class="remove">Remove</button></td></tr>
+                {% for item in items %}
+                <tr><td><input type="text" name="items" value="{{ item }}"></td><td><button class="remove">Remove</button></td></tr>
+                {% endfor %}
+            </table>
+            <button class="add-row" type="button" data-table="items">Add Item</button>
+        </form>
+    </div>
+{% endblock %}

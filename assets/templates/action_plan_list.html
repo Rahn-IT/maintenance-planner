@@ -1,0 +1,13 @@
+{% extends 'layout.html' %} {% block title %} Action Plans: {% endblock %} {%
+block content %}
+<div>
+    <a href="/action_plan/new">New Action Plan</a>
+</div>
+<div>
+    {% for action_plan in action_plans %}
+    <div>
+        <h2>{{ action_plan.name }}</h2>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}
