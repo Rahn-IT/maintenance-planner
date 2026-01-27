@@ -11,6 +11,7 @@ minijinja-embed = "2.14.0"
 serde = { version = "1.0.228", features = ["derive"] }
 sqlx = { version = "0.8.6", features = ["runtime-tokio", "sqlite"] }
 tokio = { version = "1.49.0", features = ["full"] }
+uuid = { version = "1.19.0", features = ["v4", "serde"] }
 
 [build-dependencies]
 minijinja-embed = "2.14.0"
