@@ -1,7 +1,7 @@
 {% extends 'layout.html' %} {% block title %} Edit Action Plan {% endblock %} {%
 block content %}
     <div>
-        <form>
+        <form method="post" action="">
             <label for="name">Name:</label>
 
             <input
@@ -19,6 +19,7 @@ block content %}
                 {% endfor %}
             </table>
             <button class="add-row" type="button" data-table="items">Add Item</button>
+            <input type="submit" value="Save">
         </form>
     </div>
 {% endblock %}

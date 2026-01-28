@@ -1,5 +1,8 @@
-use axum::{extract::State, response::Html};
-use serde::Serialize;
+use axum::{
+    extract::State,
+    response::{Html, Redirect},
+};
+use serde::{Deserialize, Serialize};
 use sqlx::prelude::FromRow;
 use uuid::Uuid;
 
@@ -40,6 +43,16 @@ pub async fn new_get(State(state): State<AppState>) -> Result<Html<String>, AppE
     };
 
     edit_action_plan(state, &plan)
+}
+
+#[derive(Deserialize)]
+pub struct ActionPlanForm {
+    name: String,
+    items: Vec<String>,
+}
+
+pub async fn new_post(State(state): State<AppState>, form: ActionPlanForm) -> Result<Redirect, AppError> {
+    todo!()
 }
 
 #[derive(Serialize)]
