@@ -1,7 +1,8 @@
 -- Add migration script here
 CREATE TABLE action_items (
-    id BLOB PRIMARY KEY,
-    action_plan BLOB NOT NULL,
+    id TEXT PRIMARY KEY,
+    order_index INTEGER NOT NULL,
+    action_plan TEXT NOT NULL,
     name TEXT NOT NULL,
     FOREIGN KEY (action_plan) REFERENCES action_plans(id)
 );

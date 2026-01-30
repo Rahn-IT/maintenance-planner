@@ -1,7 +1,7 @@
 -- Add migration script here
 CREATE TABLE action_plan_executions (
-    id BLOB PRIMARY KEY,
-    action_plan BLOB NOT NULL,
+    id TEXT PRIMARY KEY,
+    action_plan TEXT NOT NULL,
     /* Unix timestamp */
     started INTEGER NOT NULL,
     /* Unix timestamp */

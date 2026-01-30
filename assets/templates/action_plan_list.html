@@ -6,7 +6,9 @@ block content %}
 <div>
     {% for action_plan in action_plans %}
     <div>
-        <h2>{{ action_plan.name }}</h2>
+        <a href="/action_plan/{{ action_plan.id }}"
+            ><h2>{{ action_plan.name }}</h2></a
+        >
     </div>
     {% endfor %}
 </div>

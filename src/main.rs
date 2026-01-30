@@ -5,7 +5,7 @@ use axum::{
     extract::State,
     http::{HeaderValue, StatusCode, header},
     response::{Html, IntoResponse, Response},
-    routing::get,
+    routing::{get, post},
 };
 use sqlx::{Sqlite, SqlitePool, migrate::MigrateDatabase};
 
@@ -74,7 +74,9 @@ fn router() -> Router<AppState> {
     Router::new()
         // `GET /` goes to `root`
         .route("/", get(action_plan::index))
+        .route("/action_plan/{id}", get(action_plan::show_action_plan))
         .route("/action_plan/new", get(action_plan::new_get))
+        .route("/action_plan/new", post(action_plan::new_post))
         .route(
             "/static/style.css",
             get((

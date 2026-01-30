@@ -1,0 +1,15 @@
+{% extends 'layout.html' %} {% block title %} Action Plan {% endblock %} {%
+block content %}
+    <div>
+        <a href="/action_plan/{{id}}/edit">Edit</a>
+    </div>
+    <div>
+        <div>{{ name }}</div>
+        <table>
+            <th><td>name</td></th>
+            {% for item in items %}
+            <tr><td>{{ item.name }}</td></tr>
+            {% endfor %}
+        </table>
+    </div>
+{% endblock %}
