@@ -1,15 +1,14 @@
-{% extends 'layout.html' %} {% block title %} Action Plans: {% endblock %} {%
-block content %}
-<div>
-    <a href="/action_plan/new">New Action Plan</a>
+{% extends 'layout.html' %} {% block title %} Action Plans {% endblock %} {% block content %}
+<div class="toolbar">
+    <a class="btn btn-primary" href="/action_plan/new">New Action Plan</a>
 </div>
-<div>
+<div class="plan-list">
     {% for action_plan in action_plans %}
-    <div>
-        <a href="/action_plan/{{ action_plan.id }}"
-            ><h2>{{ action_plan.name }}</h2></a
-        >
-    </div>
+    <a class="plan-card" href="/action_plan/{{ action_plan.id }}">
+        <h2>{{ action_plan.name }}</h2>
+    </a>
+    {% else %}
+    <p class="muted">No action plans yet. Create your first one.</p>
     {% endfor %}
 </div>
 {% endblock %}

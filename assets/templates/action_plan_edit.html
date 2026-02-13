@@ -1,25 +1,31 @@
-{% extends 'layout.html' %} {% block title %} Edit Action Plan {% endblock %} {%
-block content %}
-    <div>
-        <form method="post" action="">
-            <label for="name">Name:</label>
+{% extends 'layout.html' %} {% block title %} Edit Action Plan {% endblock %} {% block content %}
+<div class="details-card">
+    <form method="post" action="{{ form_action }}" class="plan-form">
+        <label for="name">Name</label>
 
-            <input
-                type="text"
-                id="name"
-                name="name"
-                value="{{ name }}"
-            />
-            <table id="items">
-                <th><td>name</td></th>
+        <input
+            type="text"
+            id="name"
+            name="name"
+            value="{{ name }}"
+            placeholder="e.g. Monthly workstation maintenance"
+        />
+        <table id="items" class="items-table form-table">
+            <thead>
+                <tr><th>Item</th><th class="actions-col">Action</th></tr>
+            </thead>
+            <tbody>
                 <!--Template Row-->
-                <tr class="template"><td><input  type="text" name="items" form=""></td><td><button class="remove">Remove</button></td></tr>
+                <tr class="template"><td><input type="text" name="items" form="" placeholder="Checklist item"></td><td><button class="remove btn btn-danger" type="button">Remove</button></td></tr>
                 {% for item in items %}
-                <tr><td><input type="text" name="items" value="{{ item }}"></td><td><button class="remove">Remove</button></td></tr>
+                <tr><td><input type="text" name="items" value="{{ item.name }}"></td><td><button class="remove btn btn-danger" type="button">Remove</button></td></tr>
                 {% endfor %}
-            </table>
-            <button class="add-row" type="button" data-table="items">Add Item</button>
-            <input type="submit" value="Save">
-        </form>
-    </div>
+            </tbody>
+        </table>
+        <div class="form-actions">
+            <button class="add-row btn" type="button" data-table="items">Add Item</button>
+            <input class="btn btn-primary" type="submit" value="Save">
+        </div>
+    </form>
+</div>
 {% endblock %}

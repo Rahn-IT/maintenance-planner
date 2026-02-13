@@ -77,6 +77,8 @@ fn router() -> Router<AppState> {
         .route("/action_plan/{id}", get(action_plan::show_action_plan))
         .route("/action_plan/new", get(action_plan::new_get))
         .route("/action_plan/new", post(action_plan::new_post))
+        .route("/action_plan/{id}/edit", get(action_plan::edit_get))
+        .route("/action_plan/{id}/edit", post(action_plan::edit_post))
         .route(
             "/static/style.css",
             get((

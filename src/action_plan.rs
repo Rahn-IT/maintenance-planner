@@ -39,11 +39,13 @@ pub async fn index(State(state): State<AppState>) -> Result<Html<String>, AppErr
 
 pub async fn new_get(State(state): State<AppState>) -> Result<Html<String>, AppError> {
     let plan = ActionPlanEdit {
+        id: None,
+        form_action: "/action_plan/new".to_string(),
         name: String::new(),
         items: Vec::new(),
     };
 
-    edit_action_plan(state, &plan)
+    edit_action_plan(&state, &plan)
 }
 
 #[derive(Serialize, Deserialize)]
@@ -68,7 +70,7 @@ pub async fn new_post(
     .execute(&mut *tx)
     .await?;
 
-    for (order, item) in form.items.iter().enumerate() {
+    for (order, item) in normalize_items(form.items).into_iter().enumerate() {
         let order = order as i32;
         let item_id = Uuid::new_v4();
         sqlx::query!(
@@ -87,9 +89,68 @@ pub async fn new_post(
     Ok(Redirect::to(&format!("/action_plan/{}", &plan_id)))
 }
 
-pub async fn edit_get(State(state): State<AppState>) -> Result<Html<String>, AppError> {
+pub async fn edit_get(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Html<String>, AppError> {
+    let plan = sqlx::query_as!(
+        ActionPlan,
+        r#"SELECT id as "id: uuid::Uuid", name FROM action_plans WHERE id = $1"#,
+        id
+    )
+    .fetch_one(&state.db)
+    .await?;
+
+    let items = sqlx::query_as!(
+        ActionPlanItem,
+        r#"SELECT name FROM action_items WHERE action_plan = $1 ORDER BY order_index ASC"#,
+        id
+    )
+    .fetch_all(&state.db)
+    .await?;
+
+    let plan = ActionPlanEdit {
+        id: Some(plan.id),
+        form_action: format!("/action_plan/{}/edit", plan.id),
+        name: plan.name,
+        items,
+    };
+
+    edit_action_plan(&state, &plan)
+}
+
+pub async fn edit_post(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+    Form(form): Form<ActionPlanForm>,
+) -> Result<Redirect, AppError> {
     let mut tx = state.db.begin().await?;
-    todo!()
+
+    sqlx::query!("UPDATE action_plans SET name = $1 WHERE id = $2", form.name, id)
+        .execute(&mut *tx)
+        .await?;
+
+    sqlx::query!("DELETE FROM action_items WHERE action_plan = $1", id)
+        .execute(&mut *tx)
+        .await?;
+
+    for (order, item) in normalize_items(form.items).into_iter().enumerate() {
+        let order = order as i32;
+        let item_id = Uuid::new_v4();
+        sqlx::query!(
+            "INSERT INTO action_items (id, order_index, action_plan, name) VALUES ($1, $2, $3, $4)",
+            item_id,
+            order,
+            id,
+            item
+        )
+        .execute(&mut *tx)
+        .await?;
+    }
+
+    tx.commit().await?;
+
+    Ok(Redirect::to(&format!("/action_plan/{}", id)))
 }
 
 pub async fn show_action_plan(
@@ -112,7 +173,8 @@ pub async fn show_action_plan(
     .fetch_all(&state.db)
     .await?;
 
-    let plan = ActionPlanEdit {
+    let plan = ActionPlanShow {
+        id: plan.id,
         name: plan.name,
         items,
     };
@@ -128,6 +190,15 @@ pub async fn show_action_plan(
 
 #[derive(Serialize)]
 pub struct ActionPlanEdit {
+    id: Option<Uuid>,
+    form_action: String,
+    name: String,
+    items: Vec<ActionPlanItem>,
+}
+
+#[derive(Serialize)]
+pub struct ActionPlanShow {
+    id: Uuid,
     name: String,
     items: Vec<ActionPlanItem>,
 }
@@ -137,7 +208,7 @@ pub struct ActionPlanItem {
     name: String,
 }
 
-fn edit_action_plan(state: AppState, plan: &ActionPlanEdit) -> Result<Html<String>, AppError> {
+fn edit_action_plan(state: &AppState, plan: &ActionPlanEdit) -> Result<Html<String>, AppError> {
     let template = state
         .jinja
         .get_template("action_plan_edit.html")
@@ -145,4 +216,12 @@ fn edit_action_plan(state: AppState, plan: &ActionPlanEdit) -> Result<Html<Strin
     let rendered = template.render(plan)?;
 
     Ok(Html(rendered))
+}
+
+fn normalize_items(items: Vec<String>) -> Vec<String> {
+    items
+        .into_iter()
+        .map(|item| item.trim().to_string())
+        .filter(|item| !item.is_empty())
+        .collect()
 }
