@@ -4,9 +4,18 @@
 </div>
 <div class="plan-list">
     {% for action_plan in action_plans %}
-    <a class="plan-card" href="/action_plan/{{ action_plan.id }}">
-        <h2>{{ action_plan.name }}</h2>
-    </a>
+    <div class="plan-card">
+        <a class="plan-title-link" href="/action_plan/{{ action_plan.id }}">
+            <h2>{{ action_plan.name }}</h2>
+        </a>
+        {% if action_plan.active_execution_id %}
+        <p><a href="/executions/{{ action_plan.active_execution_id }}">Continue active execution</a></p>
+        {% elif action_plan.last_finished_display %}
+        <p class="muted">Last finished: {{ action_plan.last_finished_display }}</p>
+        {% else %}
+        <p class="muted">No execution yet</p>
+        {% endif %}
+    </div>
     {% else %}
     <p class="muted">No action plans yet. Create your first one.</p>
     {% endfor %}

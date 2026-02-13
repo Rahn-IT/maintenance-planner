@@ -18,7 +18,15 @@ pub struct ActionPlan {
 
 #[derive(Serialize)]
 pub struct ActionPlanList {
-    action_plans: Vec<ActionPlan>,
+    action_plans: Vec<ActionPlanListItem>,
+}
+
+#[derive(Serialize)]
+pub struct ActionPlanListItem {
+    id: Uuid,
+    name: String,
+    active_execution_id: Option<Uuid>,
+    last_finished_display: Option<String>,
 }
 
 pub async fn index(State(state): State<AppState>) -> Result<Html<String>, AppError> {
@@ -29,11 +37,51 @@ pub async fn index(State(state): State<AppState>) -> Result<Html<String>, AppErr
     .fetch_all(&state.db)
     .await?;
 
+    let mut action_plan_list = Vec::with_capacity(action_plans.len());
+    for action_plan in action_plans {
+        let active_execution_id = sqlx::query_scalar!(
+            r#"
+            SELECT id as "id: uuid::Uuid"
+            FROM action_plan_executions
+            WHERE action_plan = $1
+                AND (finished IS NULL OR finished <= 0)
+            ORDER BY started DESC
+            LIMIT 1
+            "#,
+            action_plan.id
+        )
+        .fetch_optional(&state.db)
+        .await?;
+
+        let last_finished = sqlx::query_scalar!(
+            r#"
+            SELECT finished as "finished: i64"
+            FROM action_plan_executions
+            WHERE action_plan = $1
+                AND finished > 0
+            ORDER BY finished DESC
+            LIMIT 1
+            "#,
+            action_plan.id
+        )
+        .fetch_optional(&state.db)
+        .await?;
+
+        action_plan_list.push(ActionPlanListItem {
+            id: action_plan.id,
+            name: action_plan.name,
+            active_execution_id: active_execution_id.flatten(),
+            last_finished_display: last_finished.map(format_unix_timestamp),
+        });
+    }
+
     let template = state
         .jinja
         .get_template("action_plan_list.html")
         .expect("template is loaded");
-    let rendered = template.render(&ActionPlanList { action_plans })?;
+    let rendered = template.render(&ActionPlanList {
+        action_plans: action_plan_list,
+    })?;
 
     Ok(Html(rendered))
 }
@@ -272,13 +320,6 @@ pub async fn show_action_plan(
         .collect();
 
     let active_execution_link = active_executions.first().map(|execution| execution.id);
-    let last_finished_display = if active_execution_link.is_none() {
-        finished_executions
-            .first()
-            .map(|execution| execution.finished_display.clone())
-    } else {
-        None
-    };
 
     let plan = ActionPlanShow {
         id: plan.id,
@@ -287,7 +328,6 @@ pub async fn show_action_plan(
         active_executions,
         finished_executions,
         active_execution_link,
-        last_finished_display,
     };
 
     let template = state
@@ -315,7 +355,6 @@ pub struct ActionPlanShow {
     active_executions: Vec<PlanExecutionActive>,
     finished_executions: Vec<PlanExecutionFinished>,
     active_execution_link: Option<Uuid>,
-    last_finished_display: Option<String>,
 }
 
 #[derive(Serialize)]

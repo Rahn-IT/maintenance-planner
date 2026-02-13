@@ -133,6 +133,15 @@ a:hover {
     line-height: 1.4;
 }
 
+.plan-title-link {
+    color: inherit;
+    text-decoration: none;
+}
+
+.plan-title-link:hover {
+    text-decoration: none;
+}
+
 .plan-card:hover {
     text-decoration: none;
     transform: translateY(-2px);
