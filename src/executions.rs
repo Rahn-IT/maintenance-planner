@@ -107,7 +107,7 @@ pub async fn create_post(
 
     let template_items = sqlx::query!(
         r#"
-        SELECT id as "id: uuid::Uuid", order_index
+        SELECT action as "action_id: uuid::Uuid", order_index
         FROM action_items
         WHERE action_plan = $1
         ORDER BY order_index ASC
@@ -121,11 +121,11 @@ pub async fn create_post(
         let execution_item_id = Uuid::new_v4();
         sqlx::query!(
             r#"
-            INSERT INTO action_item_executions (id, action_item, order_index, action_plan_execution, finished)
+            INSERT INTO action_item_executions (id, action, order_index, action_plan_execution, finished)
             VALUES ($1, $2, $3, $4, NULL)
             "#,
             execution_item_id,
-            item.id,
+            item.action_id,
             item.order_index,
             execution_id
         )
@@ -181,8 +181,7 @@ pub async fn show(
                 ELSE 1
             END as "is_finished!: i64"
         FROM action_item_executions
-        INNER JOIN action_items ON action_items.id = action_item_executions.action_item
-        INNER JOIN actions ON actions.id = action_items.action
+        INNER JOIN actions ON actions.id = action_item_executions.action
         WHERE action_item_executions.action_plan_execution = $1
         ORDER BY action_item_executions.order_index ASC
         "#,

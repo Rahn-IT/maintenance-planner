@@ -8,7 +8,8 @@ use axum::{
 };
 use chrono::{Local, TimeZone};
 use sqlx::{Sqlite, SqlitePool, migrate::MigrateDatabase};
-use tokio::signal;
+use tokio::{signal, time::Duration};
+use uuid::Uuid;
 
 mod action_plan;
 mod executions;
@@ -149,6 +150,8 @@ async fn main() {
 
     let db = SqlitePool::connect(DB_PATH).await.unwrap();
     sqlx::migrate!("./migrations").run(&db).await.unwrap();
+    run_action_gc(&db).await;
+    tokio::spawn(run_action_gc_scheduler(db.clone()));
 
     let mut jinja = minijinja::Environment::new();
     minijinja_embed::load_templates!(&mut jinja);
@@ -229,4 +232,84 @@ pub fn format_unix_timestamp(timestamp: i64) -> String {
         Some(datetime) => datetime.format("%Y-%m-%d %H:%M").to_string(),
         None => "Unknown".to_string(),
     }
+}
+
+#[derive(Debug)]
+struct UnusedAction {
+    id: Uuid,
+    name: String,
+}
+
+async fn run_action_gc_scheduler(db: SqlitePool) {
+    let mut interval = tokio::time::interval(Duration::from_secs(60 * 60));
+    interval.tick().await;
+
+    loop {
+        interval.tick().await;
+        run_action_gc(&db).await;
+    }
+}
+
+async fn run_action_gc(db: &SqlitePool) {
+    match collect_and_delete_unused_actions(db).await {
+        Ok(unused_actions) if unused_actions.is_empty() => {
+            println!("Action GC: no unused actions found.");
+        }
+        Ok(unused_actions) => {
+            let action_labels = unused_actions
+                .iter()
+                .map(|action| format!("{} ({})", action.name, action.id))
+                .collect::<Vec<_>>()
+                .join(", ");
+            println!(
+                "Action GC: deleted {} unused action(s): {}",
+                unused_actions.len(),
+                action_labels
+            );
+        }
+        Err(err) => {
+            eprintln!("Action GC failed: {}", err);
+        }
+    }
+}
+
+async fn collect_and_delete_unused_actions(db: &SqlitePool) -> anyhow::Result<Vec<UnusedAction>> {
+    let mut tx = db.begin().await?;
+
+    let unused_actions = sqlx::query!(
+        r#"
+        SELECT
+            actions.id as "id: uuid::Uuid",
+            actions.name
+        FROM actions
+        WHERE NOT EXISTS (
+            SELECT 1
+            FROM action_items
+            WHERE action_items.action = actions.id
+        )
+        AND NOT EXISTS (
+            SELECT 1
+            FROM action_item_executions
+            WHERE action_item_executions.action = actions.id
+        )
+        "#
+    )
+    .fetch_all(&mut *tx)
+    .await?;
+
+    for action in &unused_actions {
+        sqlx::query!("DELETE FROM actions WHERE id = $1", action.id)
+            .execute(&mut *tx)
+            .await?;
+    }
+
+    tx.commit().await?;
+
+    Ok(unused_actions
+        .into_iter()
+        .map(|action| UnusedAction {
+            id: action.id,
+            name: action.name,
+        })
+        .collect())
 }

@@ -1,11 +1,12 @@
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     response::{Html, Redirect},
 };
 use axum_extra::extract::Form;
 use serde::{Deserialize, Serialize};
 use sqlx::prelude::FromRow;
 use sqlx::{Sqlite, Transaction};
+use std::collections::HashMap;
 use uuid::Uuid;
 
 use crate::{AppError, AppState, format_unix_timestamp};
@@ -19,6 +20,7 @@ pub struct ActionPlan {
 #[derive(Serialize)]
 pub struct ActionPlanList {
     action_plans: Vec<ActionPlanListItem>,
+    current_sort: String,
 }
 
 #[derive(Serialize)]
@@ -29,7 +31,12 @@ pub struct ActionPlanListItem {
     last_finished_display: Option<String>,
 }
 
-pub async fn index(State(state): State<AppState>) -> Result<Html<String>, AppError> {
+pub async fn index(
+    State(state): State<AppState>,
+    Query(query): Query<ActionPlanListQuery>,
+) -> Result<Html<String>, AppError> {
+    let sort = query.sort.unwrap_or_else(|| "name".to_string());
+
     let action_plans = sqlx::query_as!(
         ActionPlan,
         r#"SELECT id as "id: uuid::Uuid", name FROM action_plans"#
@@ -53,6 +60,19 @@ pub async fn index(State(state): State<AppState>) -> Result<Html<String>, AppErr
         .fetch_optional(&state.db)
         .await?;
 
+        let last_execution = sqlx::query_scalar!(
+            r#"
+            SELECT started as "started: i64"
+            FROM action_plan_executions
+            WHERE action_plan = $1
+            ORDER BY started DESC
+            LIMIT 1
+            "#,
+            action_plan.id
+        )
+        .fetch_optional(&state.db)
+        .await?;
+
         let last_finished = sqlx::query_scalar!(
             r#"
             SELECT finished as "finished: i64"
@@ -67,20 +87,44 @@ pub async fn index(State(state): State<AppState>) -> Result<Html<String>, AppErr
         .fetch_optional(&state.db)
         .await?;
 
-        action_plan_list.push(ActionPlanListItem {
+        action_plan_list.push(ActionPlanListSortItem {
             id: action_plan.id,
             name: action_plan.name,
             active_execution_id: active_execution_id.flatten(),
-            last_finished_display: last_finished.map(format_unix_timestamp),
+            last_finished_display: last_finished.flatten().map(format_unix_timestamp),
+            last_execution_unix: last_execution,
         });
     }
+
+    match sort.as_str() {
+        "last_execution_desc" => {
+            action_plan_list.sort_by(|a, b| b.last_execution_unix.cmp(&a.last_execution_unix));
+        }
+        "last_execution_asc" => {
+            action_plan_list.sort_by(|a, b| a.last_execution_unix.cmp(&b.last_execution_unix));
+        }
+        _ => {
+            action_plan_list.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+        }
+    }
+
+    let action_plans = action_plan_list
+        .into_iter()
+        .map(|item| ActionPlanListItem {
+            id: item.id,
+            name: item.name,
+            active_execution_id: item.active_execution_id,
+            last_finished_display: item.last_finished_display,
+        })
+        .collect();
 
     let template = state
         .jinja
         .get_template("action_plan_list.html")
         .expect("template is loaded");
     let rendered = template.render(&ActionPlanList {
-        action_plans: action_plan_list,
+        action_plans,
+        current_sort: sort,
     })?;
 
     Ok(Html(rendered))
@@ -120,13 +164,16 @@ pub async fn new_post(
     .execute(&mut *tx)
     .await?;
 
-    update_plan_items(tx, plan_id, form).await
+    update_plan_items(tx, plan_id, form, None).await
 }
 
 pub async fn edit_get(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
+    Query(query): Query<EditContext>,
 ) -> Result<Html<String>, AppError> {
+    let execution_id = query.execution_id;
+
     let plan = sqlx::query_as!(
         ActionPlan,
         r#"SELECT id as "id: uuid::Uuid", name FROM action_plans WHERE id = $1"#,
@@ -157,8 +204,16 @@ pub async fn edit_get(
 
     let plan = ActionPlanEdit {
         id: Some(plan.id),
-        form_action: format!("/action_plan/{}/edit", plan.id),
-        cancel_url: format!("/action_plan/{}", plan.id),
+        form_action: if let Some(execution_id) = execution_id {
+            format!("/action_plan/{}/edit?execution_id={}", plan.id, execution_id)
+        } else {
+            format!("/action_plan/{}/edit", plan.id)
+        },
+        cancel_url: if let Some(execution_id) = execution_id {
+            format!("/executions/{}", execution_id)
+        } else {
+            format!("/action_plan/{}", plan.id)
+        },
         name: plan.name,
         items,
     };
@@ -169,8 +224,10 @@ pub async fn edit_get(
 pub async fn edit_post(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
+    Query(query): Query<EditContext>,
     Form(form): Form<ActionPlanForm>,
 ) -> Result<Redirect, AppError> {
+    let execution_id = query.execution_id;
     let mut tx = state.db.begin().await?;
 
     let update_result = sqlx::query!(
@@ -187,14 +244,46 @@ pub async fn edit_post(
         )));
     }
 
-    update_plan_items(tx, id, form).await
+    update_plan_items(tx, id, form, execution_id).await
 }
 
 async fn update_plan_items<'c>(
     mut tx: Transaction<'c, Sqlite>,
     plan_id: Uuid,
     form: ActionPlanForm,
+    execution_id: Option<Uuid>,
 ) -> Result<Redirect, AppError> {
+    let mut execution_state_by_name: HashMap<String, Option<i64>> = HashMap::new();
+
+    if let Some(execution_id) = execution_id {
+        let execution_items = sqlx::query!(
+            r#"
+            SELECT
+                actions.name as "name!",
+                action_item_executions.finished as "finished?"
+            FROM action_item_executions
+            INNER JOIN actions ON actions.id = action_item_executions.action
+            WHERE action_item_executions.action_plan_execution = $1
+            "#,
+            execution_id
+        )
+        .fetch_all(&mut *tx)
+        .await?;
+
+        for item in execution_items {
+            execution_state_by_name.insert(item.name, item.finished);
+        }
+        sqlx::query!(
+            r#"
+            DELETE FROM action_item_executions
+            WHERE action_plan_execution = $1
+            "#,
+            execution_id
+        )
+        .execute(&mut *tx)
+        .await?;
+    }
+
     sqlx::query!("DELETE FROM action_items WHERE action_plan = $1", plan_id)
         .execute(&mut *tx)
         .await?;
@@ -234,9 +323,50 @@ async fn update_plan_items<'c>(
         .await?;
     }
 
+    if let Some(execution_id) = execution_id {
+        let new_plan_items = sqlx::query!(
+            r#"
+            SELECT
+                action_items.action as "action_id: uuid::Uuid",
+                action_items.order_index,
+                actions.name as "name!"
+            FROM action_items
+            INNER JOIN actions ON actions.id = action_items.action
+            WHERE action_items.action_plan = $1
+            ORDER BY action_items.order_index ASC
+            "#,
+            plan_id
+        )
+        .fetch_all(&mut *tx)
+        .await?;
+
+        for item in new_plan_items {
+            let execution_item_id = Uuid::new_v4();
+            let finished = execution_state_by_name.get(&item.name).cloned().flatten();
+
+            sqlx::query!(
+                r#"
+                INSERT INTO action_item_executions (id, action, order_index, action_plan_execution, finished)
+                VALUES ($1, $2, $3, $4, $5)
+                "#,
+                execution_item_id,
+                item.action_id,
+                item.order_index,
+                execution_id,
+                finished
+            )
+            .execute(&mut *tx)
+            .await?;
+        }
+    }
+
     tx.commit().await?;
 
-    Ok(Redirect::to(&format!("/action_plan/{}", plan_id)))
+    if let Some(execution_id) = execution_id {
+        Ok(Redirect::to(&format!("/executions/{}", execution_id)))
+    } else {
+        Ok(Redirect::to(&format!("/action_plan/{}", plan_id)))
+    }
 }
 
 pub async fn show_action_plan(
@@ -408,4 +538,22 @@ fn normalize_items(items: Option<Vec<String>>) -> Vec<String> {
         .map(|item| item.trim().to_string())
         .filter(|item| !item.is_empty())
         .collect()
+}
+
+#[derive(Debug, Default, Deserialize)]
+pub struct EditContext {
+    execution_id: Option<Uuid>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+pub struct ActionPlanListQuery {
+    sort: Option<String>,
+}
+
+struct ActionPlanListSortItem {
+    id: Uuid,
+    name: String,
+    active_execution_id: Option<Uuid>,
+    last_finished_display: Option<String>,
+    last_execution_unix: Option<i64>,
 }

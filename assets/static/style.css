@@ -267,6 +267,12 @@ input[type="submit"].btn-primary:hover {
     background: var(--brand-hover);
 }
 
+.btn.is-active {
+    border-color: var(--brand);
+    background: #eaf2ff;
+    color: #124da8;
+}
+
 .btn-danger {
     border-color: #f1c3bf;
     background: #fff5f4;

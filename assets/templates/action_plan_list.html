@@ -1,6 +1,10 @@
 {% extends 'layout.html' %} {% block title %} Action Plans {% endblock %}
 {% block top_actions %}
 <a class="btn btn-primary" href="/action_plan/new">New Action Plan</a>
+<span class="muted">Sort:</span>
+<a class="btn {% if current_sort == 'name' %}is-active{% endif %}" href="/?sort=name">A-Z</a>
+<a class="btn {% if current_sort == 'last_execution_desc' %}is-active{% endif %}" href="/?sort=last_execution_desc">Newest Execution</a>
+<a class="btn {% if current_sort == 'last_execution_asc' %}is-active{% endif %}" href="/?sort=last_execution_asc">Oldest Execution</a>
 {% endblock %}
 {% block content %}
 <div class="plan-list">
