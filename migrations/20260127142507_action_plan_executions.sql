@@ -5,7 +5,7 @@ CREATE TABLE action_plan_executions (
     /* Unix timestamp */
     started INTEGER NOT NULL,
     /* Unix timestamp */
-    finished INTEGER NOT NULL,
+    finished INTEGER,
     FOREIGN KEY (action_plan) REFERENCES action_plans(id)
 );
 CREATE INDEX action_plan_executions_idx ON action_plan_executions(action_plan);

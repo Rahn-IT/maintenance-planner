@@ -7,6 +7,7 @@ use axum::{
     routing::{get, post},
 };
 use sqlx::{Sqlite, SqlitePool, migrate::MigrateDatabase};
+use tokio::signal;
 
 mod action_plan;
 mod executions;
@@ -39,13 +40,6 @@ impl AppError {
     pub fn not_found(message: impl Into<String>) -> Self {
         Self {
             status: StatusCode::NOT_FOUND,
-            message: message.into(),
-        }
-    }
-
-    pub fn conflict(message: impl Into<String>) -> Self {
-        Self {
-            status: StatusCode::CONFLICT,
             message: message.into(),
         }
     }
@@ -139,7 +133,7 @@ async fn main() {
     minijinja_embed::load_templates!(&mut jinja);
 
     let state = AppState {
-        db,
+        db: db.clone(),
         jinja: Arc::new(jinja),
     };
 
@@ -150,7 +144,14 @@ async fn main() {
     let addr = "0.0.0.0:4040";
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     println!("Starting webserver on: http://{}", addr);
-    axum::serve(listener, app).await.unwrap();
+    axum::serve(listener, app)
+        .with_graceful_shutdown(async {
+            let _ = signal::ctrl_c().await;
+        })
+        .await
+        .unwrap();
+    println!("Shutting down");
+    db.close().await;
 }
 
 fn router() -> Router<AppState> {
@@ -159,6 +160,7 @@ fn router() -> Router<AppState> {
         .route("/", get(action_plan::index))
         .route("/executions", get(executions::index))
         .route("/executions/{id}", get(executions::show))
+        .route("/action_plan_execution/{id}", get(executions::show))
         .route("/action_plan/{id}", get(action_plan::show_action_plan))
         .route("/action_plan/{id}/execute", post(executions::create_post))
         .route("/action_plan/new", get(action_plan::new_get))

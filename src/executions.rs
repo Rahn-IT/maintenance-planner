@@ -2,8 +2,7 @@ use axum::{
     extract::{Path, State},
     response::{Html, Redirect},
 };
-use axum_extra::extract::Form;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use sqlx::prelude::FromRow;
 use uuid::Uuid;
 

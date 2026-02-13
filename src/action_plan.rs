@@ -4,8 +4,8 @@ use axum::{
 };
 use axum_extra::extract::Form;
 use serde::{Deserialize, Serialize};
+use sqlx::prelude::FromRow;
 use sqlx::{Sqlite, Transaction};
-use sqlx::{SqlitePool, prelude::FromRow};
 use uuid::Uuid;
 
 use crate::{AppError, AppState};
@@ -63,7 +63,6 @@ pub async fn new_post(
 
     let plan_id = Uuid::new_v4();
 
-    println!("Creating new action plan: {} ({})", form.name, plan_id);
     sqlx::query!(
         "INSERT INTO action_plans (id, name) VALUES ($1, $2)",
         plan_id,
@@ -161,7 +160,6 @@ async fn update_plan_items<'c>(
             Some(action) => Uuid::from_slice(&action.id)?,
             None => {
                 let action_id = Uuid::new_v4();
-                println!("Creating new action: {} ({})", item, action_id);
                 sqlx::query!(
                     "INSERT INTO actions (id, name) VALUES ($1, $2)",
                     action_id,
@@ -175,10 +173,6 @@ async fn update_plan_items<'c>(
         };
         let order = order as i64;
         let item_id = Uuid::new_v4();
-        println!(
-            "Creating action item:\n\tid: {}\n\taction: {}",
-            item_id, action
-        );
         sqlx::query!(
             "INSERT INTO action_items (id, order_index, action_plan, action) VALUES ($1, $2, $3, $4)",
             item_id,
@@ -188,10 +182,7 @@ async fn update_plan_items<'c>(
         )
         .execute(&mut *tx)
         .await?;
-        println!("Action item created successfully");
     }
-
-    println!("sending commit");
 
     tx.commit().await?;
 

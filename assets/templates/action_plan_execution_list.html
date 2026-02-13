@@ -1,7 +1,7 @@
 {% extends 'layout.html' %} {% block title %} Executions {% endblock %} {% block content %}
 <div class="plan-list">
     {% for execution in executions %}
-    <a class="plan-card" href="/action_plan_execution/{{ execution.id }}">
+    <a class="plan-card" href="/executions/{{ execution.id }}">
         <h2>{{ execution.action_plan_name }}</h2>
         <p class="muted">Started (unix): {{ execution.started }}</p>
         {% if execution.finished > 0 %}
