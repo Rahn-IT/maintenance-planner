@@ -1,0 +1,18 @@
+{% extends 'layout.html' %}
+{% block title %}Delete Execution{% endblock %}
+{% block top_actions %}
+<a class="btn" href="/executions/{{ id }}">Back to Execution</a>
+{% endblock %}
+{% block content %}
+<div class="details-card">
+    <p>Are you sure you want to delete this open execution?</p>
+    <p class="muted">Plan: {{ action_plan_name }}</p>
+    <p class="muted">Started: {{ started_display }}</p>
+</div>
+{% endblock %}
+{% block bottom_actions %}
+<a class="btn" href="/executions/{{ id }}">Cancel</a>
+<form method="post" action="/executions/{{ id }}/delete">
+    <button class="btn btn-danger" type="submit">Delete Execution</button>
+</form>
+{% endblock %}

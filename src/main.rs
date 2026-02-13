@@ -25,6 +25,7 @@ struct AppState {
 struct AppError {
     status: StatusCode,
     message: String,
+    not_found_title: Option<String>,
 }
 
 impl AppError {
@@ -35,13 +36,15 @@ impl AppError {
         Self {
             status: StatusCode::INTERNAL_SERVER_ERROR,
             message: err.into().to_string(),
+            not_found_title: None,
         }
     }
 
-    pub fn not_found(message: impl Into<String>) -> Self {
+    pub fn not_found_for(title: impl Into<String>, message: impl Into<String>) -> Self {
         Self {
             status: StatusCode::NOT_FOUND,
             message: message.into(),
+            not_found_title: Some(title.into()),
         }
     }
 
@@ -49,6 +52,7 @@ impl AppError {
         Self {
             status: StatusCode::CONFLICT,
             message: message.into(),
+            not_found_title: None,
         }
     }
 }
@@ -65,10 +69,19 @@ where
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
         if self.status == StatusCode::NOT_FOUND || self.status == StatusCode::CONFLICT {
-            let (title, button_label, button_href) = if self.status == StatusCode::NOT_FOUND {
-                ("Action Plan Not Found", "Back Home", "/")
+            let (title, button_label, button_href): (String, &str, &str) = if self.status
+                == StatusCode::NOT_FOUND
+            {
+                (
+                    format!(
+                        "{} Not Found",
+                        self.not_found_title.as_deref().unwrap_or("Site")
+                    ),
+                    "Back Home",
+                    "/",
+                )
             } else {
-                ("Cannot Save Changes", "Back Home", "/")
+                ("Cannot Save Changes".to_string(), "Back Home", "/")
             };
 
             let html = format!(
@@ -170,6 +183,10 @@ fn router() -> Router<AppState> {
         .route("/executions/{id}", get(executions::show))
         .route("/executions/{id}/complete", get(executions::complete_get))
         .route("/executions/{id}/reopen", get(executions::reopen_get))
+        .route(
+            "/executions/{id}/delete",
+            get(executions::delete_get).post(executions::delete_post),
+        )
         .route(
             "/execution-items/{id}/finished",
             post(executions::set_item_finished_post),

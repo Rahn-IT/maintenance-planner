@@ -135,7 +135,7 @@ pub async fn edit_get(
     .fetch_optional(&state.db)
     .await?;
     let Some(plan) = plan else {
-        return Err(AppError::not_found(format!(
+        return Err(AppError::not_found_for("Action Plan", format!(
             "No action plan exists for id: {}",
             id
         )));
@@ -181,7 +181,7 @@ pub async fn edit_post(
     .execute(&mut *tx)
     .await?;
     if update_result.rows_affected() == 0 {
-        return Err(AppError::not_found(format!(
+        return Err(AppError::not_found_for("Action Plan", format!(
             "No action plan exists for id: {}",
             id
         )));
@@ -251,7 +251,7 @@ pub async fn show_action_plan(
     .fetch_optional(&state.db)
     .await?;
     let Some(plan) = plan else {
-        return Err(AppError::not_found(format!(
+        return Err(AppError::not_found_for("Action Plan", format!(
             "No action plan exists for id: {}",
             id
         )));

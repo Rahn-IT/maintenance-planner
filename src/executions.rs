@@ -87,7 +87,7 @@ pub async fn create_post(
     .fetch_optional(&mut *tx)
     .await?;
     if plan_exists.is_none() {
-        return Err(AppError::not_found(format!(
+        return Err(AppError::not_found_for("Action Plan", format!(
             "No action plan exists for id: {}",
             id
         )));
@@ -163,7 +163,7 @@ pub async fn show(
     .fetch_optional(&state.db)
     .await?;
     let Some(execution) = execution else {
-        return Err(AppError::not_found(format!(
+        return Err(AppError::not_found_for("Execution", format!(
             "No todo list exists for execution id: {}",
             id
         )));
@@ -241,7 +241,7 @@ pub async fn complete_get(
     .fetch_optional(&state.db)
     .await?;
     if execution_exists.is_none() {
-        return Err(AppError::not_found(format!(
+        return Err(AppError::not_found_for("Execution", format!(
             "No todo list exists for execution id: {}",
             id
         )));
@@ -298,7 +298,7 @@ pub async fn reopen_get(
     .await?;
 
     let Some(execution) = execution else {
-        return Err(AppError::not_found(format!(
+        return Err(AppError::not_found_for("Execution", format!(
             "No todo list exists for execution id: {}",
             id
         )));
@@ -328,6 +328,110 @@ pub async fn reopen_get(
     Ok(Redirect::to(&format!("/executions/{}", id)))
 }
 
+pub async fn delete_post(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Redirect, AppError> {
+    let mut tx = state.db.begin().await?;
+
+    let execution = sqlx::query!(
+        r#"
+        SELECT finished as "finished?"
+        FROM action_plan_executions
+        WHERE id = $1
+        "#,
+        id
+    )
+    .fetch_optional(&mut *tx)
+    .await?;
+
+    let Some(execution) = execution else {
+        return Err(AppError::not_found_for("Execution", format!(
+            "No todo list exists for execution id: {}",
+            id
+        )));
+    };
+
+    if execution.finished.map(|value| value > 0).unwrap_or(false) {
+        return Err(AppError::conflict(
+            "Only open executions can be deleted.",
+        ));
+    }
+
+    sqlx::query!(
+        r#"
+        DELETE FROM action_item_executions
+        WHERE action_plan_execution = $1
+        "#,
+        id
+    )
+    .execute(&mut *tx)
+    .await?;
+
+    sqlx::query!(
+        r#"
+        DELETE FROM action_plan_executions
+        WHERE id = $1
+            AND (finished IS NULL OR finished <= 0)
+        "#,
+        id
+    )
+    .execute(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+
+    Ok(Redirect::to("/executions"))
+}
+
+pub async fn delete_get(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Html<String>, AppError> {
+    let execution = sqlx::query!(
+        r#"
+        SELECT
+            action_plan_executions.id as "id!: uuid::Uuid",
+            action_plans.name as "action_plan_name!",
+            action_plan_executions.started as "started!",
+            action_plan_executions.finished as "finished?"
+        FROM action_plan_executions
+        INNER JOIN action_plans ON action_plans.id = action_plan_executions.action_plan
+        WHERE action_plan_executions.id = $1
+        "#,
+        id
+    )
+    .fetch_optional(&state.db)
+    .await?;
+
+    let Some(execution) = execution else {
+        return Err(AppError::not_found_for("Execution", format!(
+            "No todo list exists for execution id: {}",
+            id
+        )));
+    };
+
+    if execution.finished.map(|value| value > 0).unwrap_or(false) {
+        return Err(AppError::conflict(
+            "Only open executions can be deleted.",
+        ));
+    }
+
+    let view = DeleteExecutionConfirm {
+        id: execution.id,
+        action_plan_name: execution.action_plan_name,
+        started_display: format_unix_timestamp(execution.started),
+    };
+
+    let template = state
+        .jinja
+        .get_template("execution_delete_confirm.html")
+        .expect("template is loaded");
+    let rendered = template.render(&view)?;
+
+    Ok(Html(rendered))
+}
+
 pub async fn set_item_finished_post(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
@@ -343,7 +447,7 @@ pub async fn set_item_finished_post(
     .await?;
 
     if result.rows_affected() == 0 {
-        return Err(AppError::not_found(format!(
+        return Err(AppError::not_found_for("Execution", format!(
             "No execution item exists for id: {}",
             id
         )));
@@ -436,6 +540,13 @@ struct FinishedExecutionListItemRow {
     action_plan_name: String,
     started: i64,
     finished: i64,
+}
+
+#[derive(Serialize)]
+struct DeleteExecutionConfirm {
+    id: Uuid,
+    action_plan_name: String,
+    started_display: String,
 }
 
 fn unix_now() -> i64 {
