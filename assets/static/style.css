@@ -101,6 +101,10 @@ a:hover {
     flex-wrap: wrap;
 }
 
+.toolbar form {
+    margin: 0;
+}
+
 .details-card {
     background: var(--card-2);
     border: 1px solid var(--line);

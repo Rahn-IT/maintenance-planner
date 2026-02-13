@@ -1,0 +1,22 @@
+{% extends 'layout.html' %} {% block title %} Todo List {% endblock %} {% block content %}
+<div class="toolbar">
+    <a class="btn" href="/action_plan/{{ action_plan_id }}">Back to Template</a>
+</div>
+<div class="details-card">
+    <div class="plan-name">{{ action_plan_name }}</div>
+    <p class="muted">Execution ID: {{ id }}</p>
+    <p class="muted">Started (unix): {{ started }}</p>
+    <table class="items-table">
+        <thead>
+            <tr><th>Task</th></tr>
+        </thead>
+        <tbody>
+            {% for item in items %}
+            <tr><td>{{ item.name }}</td></tr>
+            {% else %}
+            <tr><td class="muted">No items in this todo list.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

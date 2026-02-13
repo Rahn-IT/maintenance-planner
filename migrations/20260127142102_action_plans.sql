@@ -1,6 +1,7 @@
 -- Add migration script here
 
 CREATE TABLE action_plans (
-    id TEXT PRIMARY KEY NOT NULL,
+    id BLOB PRIMARY KEY NOT NULL,
     name TEXT NOT NULL
 );
+CREATE INDEX action_plans_idx ON action_plans(id);

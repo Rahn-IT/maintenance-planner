@@ -2,7 +2,10 @@
 CREATE TABLE action_item_executions (
     id TEXT PRIMARY KEY,
     action_item TEXT NOT NULL,
+    order_index INTEGER NOT NULL,
     action_plan_execution TEXT NOT NULL,
+    /* Unix timestamp */
+    finished INTEGER NOT NULL,
     FOREIGN KEY (action_item) REFERENCES action_items(id),
     FOREIGN KEY (action_plan_execution) REFERENCES action_plan_executions(id)
 );

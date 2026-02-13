@@ -1,0 +1,17 @@
+{% extends 'layout.html' %} {% block title %} Executions {% endblock %} {% block content %}
+<div class="plan-list">
+    {% for execution in executions %}
+    <a class="plan-card" href="/action_plan_execution/{{ execution.id }}">
+        <h2>{{ execution.action_plan_name }}</h2>
+        <p class="muted">Started (unix): {{ execution.started }}</p>
+        {% if execution.finished > 0 %}
+        <p class="muted">Finished (unix): {{ execution.finished }}</p>
+        {% else %}
+        <p class="muted">Not finished yet</p>
+        {% endif %}
+    </a>
+    {% else %}
+    <p class="muted">No executions yet.</p>
+    {% endfor %}
+</div>
+{% endblock %}

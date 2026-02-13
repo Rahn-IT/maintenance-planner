@@ -4,7 +4,8 @@ use axum::{
 };
 use axum_extra::extract::Form;
 use serde::{Deserialize, Serialize};
-use sqlx::prelude::FromRow;
+use sqlx::{Sqlite, Transaction};
+use sqlx::{SqlitePool, prelude::FromRow};
 use uuid::Uuid;
 
 use crate::{AppError, AppState};
@@ -51,7 +52,7 @@ pub async fn new_get(State(state): State<AppState>) -> Result<Html<String>, AppE
 #[derive(Serialize, Deserialize)]
 pub struct ActionPlanForm {
     name: String,
-    items: Vec<String>,
+    items: Option<Vec<String>>,
 }
 
 pub async fn new_post(
@@ -62,6 +63,7 @@ pub async fn new_post(
 
     let plan_id = Uuid::new_v4();
 
+    println!("Creating new action plan: {} ({})", form.name, plan_id);
     sqlx::query!(
         "INSERT INTO action_plans (id, name) VALUES ($1, $2)",
         plan_id,
@@ -70,23 +72,7 @@ pub async fn new_post(
     .execute(&mut *tx)
     .await?;
 
-    for (order, item) in normalize_items(form.items).into_iter().enumerate() {
-        let order = order as i32;
-        let item_id = Uuid::new_v4();
-        sqlx::query!(
-            "INSERT INTO action_items (id, order_index, action_plan, name) VALUES ($1, $2, $3, $4)",
-            item_id,
-            order,
-            plan_id,
-            item
-        )
-        .execute(&mut *tx)
-        .await?;
-    }
-
-    tx.commit().await?;
-
-    Ok(Redirect::to(&format!("/action_plan/{}", &plan_id)))
+    update_plan_items(tx, plan_id, form).await
 }
 
 pub async fn edit_get(
@@ -98,12 +84,24 @@ pub async fn edit_get(
         r#"SELECT id as "id: uuid::Uuid", name FROM action_plans WHERE id = $1"#,
         id
     )
-    .fetch_one(&state.db)
+    .fetch_optional(&state.db)
     .await?;
+    let Some(plan) = plan else {
+        return Err(AppError::not_found(format!(
+            "No action plan exists for id: {}",
+            id
+        )));
+    };
 
     let items = sqlx::query_as!(
         ActionPlanItem,
-        r#"SELECT name FROM action_items WHERE action_plan = $1 ORDER BY order_index ASC"#,
+        r#"
+        SELECT actions.name as "name!"
+        FROM action_items
+        INNER JOIN actions ON actions.id = action_items.action
+        WHERE action_items.action_plan = $1
+        ORDER BY action_items.order_index ASC
+        "#,
         id
     )
     .fetch_all(&state.db)
@@ -126,31 +124,78 @@ pub async fn edit_post(
 ) -> Result<Redirect, AppError> {
     let mut tx = state.db.begin().await?;
 
-    sqlx::query!("UPDATE action_plans SET name = $1 WHERE id = $2", form.name, id)
+    let update_result = sqlx::query!(
+        "UPDATE action_plans SET name = $1 WHERE id = $2",
+        form.name,
+        id
+    )
+    .execute(&mut *tx)
+    .await?;
+    if update_result.rows_affected() == 0 {
+        return Err(AppError::not_found(format!(
+            "No action plan exists for id: {}",
+            id
+        )));
+    }
+
+    update_plan_items(tx, id, form).await
+}
+
+async fn update_plan_items<'c>(
+    mut tx: Transaction<'c, Sqlite>,
+    plan_id: Uuid,
+    form: ActionPlanForm,
+) -> Result<Redirect, AppError> {
+    sqlx::query!("DELETE FROM action_items WHERE action_plan = $1", plan_id)
         .execute(&mut *tx)
         .await?;
 
-    sqlx::query!("DELETE FROM action_items WHERE action_plan = $1", id)
-        .execute(&mut *tx)
-        .await?;
+    let normalized_items = normalize_items(form.items);
 
-    for (order, item) in normalize_items(form.items).into_iter().enumerate() {
-        let order = order as i32;
+    for (order, item) in normalized_items.iter().enumerate() {
+        let action = sqlx::query!("SELECT id FROM actions WHERE name = $1", item)
+            .fetch_optional(&mut *tx)
+            .await?;
+
+        let action = match action {
+            Some(action) => Uuid::from_slice(&action.id)?,
+            None => {
+                let action_id = Uuid::new_v4();
+                println!("Creating new action: {} ({})", item, action_id);
+                sqlx::query!(
+                    "INSERT INTO actions (id, name) VALUES ($1, $2)",
+                    action_id,
+                    item
+                )
+                .execute(&mut *tx)
+                .await?;
+
+                action_id
+            }
+        };
+        let order = order as i64;
         let item_id = Uuid::new_v4();
+        println!(
+            "Creating action item:\n\tid: {}\n\taction: {}",
+            item_id, action
+        );
         sqlx::query!(
-            "INSERT INTO action_items (id, order_index, action_plan, name) VALUES ($1, $2, $3, $4)",
+            "INSERT INTO action_items (id, order_index, action_plan, action) VALUES ($1, $2, $3, $4)",
             item_id,
             order,
-            id,
-            item
+            plan_id,
+            action
         )
         .execute(&mut *tx)
         .await?;
+        println!("Action item created successfully");
     }
+
+    println!("sending commit");
 
     tx.commit().await?;
 
-    Ok(Redirect::to(&format!("/action_plan/{}", id)))
+    Ok(Redirect::to(&format!("/action_plan/{}", plan_id)))
 }
 
 pub async fn show_action_plan(
@@ -162,12 +207,24 @@ pub async fn show_action_plan(
         r#"SELECT id as "id: uuid::Uuid", name FROM action_plans WHERE id = $1"#,
         id
     )
-    .fetch_one(&state.db)
+    .fetch_optional(&state.db)
     .await?;
+    let Some(plan) = plan else {
+        return Err(AppError::not_found(format!(
+            "No action plan exists for id: {}",
+            id
+        )));
+    };
 
     let items = sqlx::query_as!(
         ActionPlanItem,
-        r#"SELECT name FROM action_items WHERE action_plan = $1 ORDER BY order_index ASC"#,
+        r#"
+        SELECT actions.name as "name!"
+        FROM action_items
+        INNER JOIN actions ON actions.id = action_items.action
+        WHERE action_items.action_plan = $1
+        ORDER BY action_items.order_index ASC
+        "#,
         id
     )
     .fetch_all(&state.db)
@@ -205,7 +262,7 @@ pub struct ActionPlanShow {
 
 #[derive(Serialize)]
 pub struct ActionPlanItem {
-    name: String,
+    pub name: String,
 }
 
 fn edit_action_plan(state: &AppState, plan: &ActionPlanEdit) -> Result<Html<String>, AppError> {
@@ -218,8 +275,9 @@ fn edit_action_plan(state: &AppState, plan: &ActionPlanEdit) -> Result<Html<Stri
     Ok(Html(rendered))
 }
 
-fn normalize_items(items: Vec<String>) -> Vec<String> {
+fn normalize_items(items: Option<Vec<String>>) -> Vec<String> {
     items
+        .unwrap_or_else(|| Vec::new())
         .into_iter()
         .map(|item| item.trim().to_string())
         .filter(|item| !item.is_empty())

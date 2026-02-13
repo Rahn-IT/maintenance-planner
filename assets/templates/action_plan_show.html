@@ -1,6 +1,9 @@
 {% extends 'layout.html' %} {% block title %} Action Plan {% endblock %} {% block content %}
 <div class="toolbar">
     <a class="btn" href="/action_plan/{{id}}/edit">Edit</a>
+    <form method="post" action="/action_plan/{{id}}/execute">
+        <button class="btn btn-primary" type="submit">Create Todo List</button>
+    </form>
 </div>
 <div class="details-card">
     <div class="plan-name">{{ name }}</div>
