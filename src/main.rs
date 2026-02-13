@@ -204,6 +204,7 @@ fn router() -> Router<AppState> {
         .route("/action_plan/new", post(action_plan::new_post))
         .route("/action_plan/{id}/edit", get(action_plan::edit_get))
         .route("/action_plan/{id}/edit", post(action_plan::edit_post))
+        .route("/actions/search", get(action_plan::search_actions))
         .route("/backup", get(backup::index))
         .route("/backup/export.json", get(backup::export_json))
         .route("/backup/import", post(backup::import_json))
@@ -225,6 +226,16 @@ fn router() -> Router<AppState> {
                     HeaderValue::from_static(mime::APPLICATION_JAVASCRIPT_UTF_8.as_ref()),
                 )],
                 include_bytes!("../assets/static/script.js"),
+            )),
+        )
+        .route(
+            "/static/action_item_search.js",
+            get((
+                [(
+                    header::CONTENT_TYPE,
+                    HeaderValue::from_static(mime::APPLICATION_JAVASCRIPT_UTF_8.as_ref()),
+                )],
+                include_bytes!("../assets/static/action_item_search.js"),
             )),
         )
 }

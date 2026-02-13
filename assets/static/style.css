@@ -308,6 +308,42 @@ input[type="submit"].btn-primary:hover {
     display: none;
 }
 
+.autocomplete-cell {
+    position: relative;
+}
+
+.action-search-menu {
+    display: none;
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    z-index: 20;
+    margin: 0;
+    padding: 0.25rem 0;
+    list-style: none;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: #fff;
+    box-shadow: 0 8px 24px rgba(15, 32, 64, 0.12);
+    max-height: 220px;
+    overflow-y: auto;
+}
+
+.action-search-menu.is-open {
+    display: block;
+}
+
+.action-search-option {
+    padding: 0.45rem 0.65rem;
+    cursor: pointer;
+}
+
+.action-search-option:hover,
+.action-search-option.is-selected {
+    background: #eaf2ff;
+}
+
 @media (max-width: 700px) {
     .page {
         margin: 1.2rem auto;

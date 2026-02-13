@@ -1,5 +1,9 @@
 window.onload = function () {
   const completeExecutionLink = document.querySelector(".execution-complete-link");
+  let bindActionItemSearchInput = () => {};
+  if (typeof window.initializeActionItemSearch === "function") {
+    bindActionItemSearchInput = window.initializeActionItemSearch() || bindActionItemSearchInput;
+  }
 
   const updateCompleteExecutionLinkState = () => {
     if (!completeExecutionLink) {
@@ -42,11 +46,18 @@ window.onload = function () {
 
         const newRow = templateRow.cloneNode(true);
         newRow.classList.remove("template");
+        newRow.querySelectorAll(".action-search-menu").forEach((menu) => menu.remove());
         newRow.querySelectorAll("input").forEach((input) => {
           input.removeAttribute("form");
+          delete input.dataset.searchBound;
         });
         tableBody.appendChild(newRow);
         bindRemoveButton(newRow.querySelector(".remove"));
+        const actionItemInput = newRow.querySelector(".js-action-item-input");
+        if (actionItemInput) {
+          bindActionItemSearchInput(actionItemInput);
+          actionItemInput.focus();
+        }
       });
     });
 

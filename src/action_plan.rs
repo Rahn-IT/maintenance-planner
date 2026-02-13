@@ -1,5 +1,6 @@
 use axum::{
     extract::{Path, Query, State},
+    Json,
     response::{Html, Redirect},
 };
 use axum_extra::extract::Form;
@@ -660,6 +661,51 @@ struct ActionPlanListSortItem {
     active_execution_id: Option<Uuid>,
     last_finished_display: Option<String>,
     last_execution_unix: Option<i64>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ActionSearchQuery {
+    q: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ActionSearchItem {
+    name: String,
+}
+
+pub async fn search_actions(
+    State(state): State<AppState>,
+    Query(query): Query<ActionSearchQuery>,
+) -> Result<Json<Vec<ActionSearchItem>>, AppError> {
+    let q = query.q.unwrap_or_default().trim().to_string();
+    if q.is_empty() {
+        return Ok(Json(Vec::new()));
+    }
+
+    let pattern = format!("%{}%", q);
+    let actions = sqlx::query!(
+        r#"
+        SELECT
+            actions.name as "name!",
+            COUNT(DISTINCT action_items.action_plan) as "usage_count!: i64"
+        FROM actions
+        LEFT JOIN action_items ON action_items.action = actions.id
+        WHERE LOWER(actions.name) LIKE LOWER($1)
+        GROUP BY actions.id, actions.name
+        ORDER BY COUNT(DISTINCT action_items.action_plan) DESC, actions.name ASC
+        LIMIT 10
+        "#,
+        pattern
+    )
+    .fetch_all(&state.db)
+    .await?;
+
+    Ok(Json(
+        actions
+            .into_iter()
+            .map(|row| ActionSearchItem { name: row.name })
+            .collect(),
+    ))
 }
 
 fn unix_now() -> i64 {
