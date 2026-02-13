@@ -12,6 +12,7 @@ use tokio::{signal, time::Duration};
 use uuid::Uuid;
 
 mod action_plan;
+mod backup;
 mod executions;
 
 const DB_PATH: &str = "./db/db.sqlite";
@@ -201,6 +202,9 @@ fn router() -> Router<AppState> {
         .route("/action_plan/new", post(action_plan::new_post))
         .route("/action_plan/{id}/edit", get(action_plan::edit_get))
         .route("/action_plan/{id}/edit", post(action_plan::edit_post))
+        .route("/backup", get(backup::index))
+        .route("/backup/export.json", get(backup::export_json))
+        .route("/backup/import", post(backup::import_json))
         .route(
             "/static/style.css",
             get((

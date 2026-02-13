@@ -1,0 +1,29 @@
+{% extends 'layout.html' %}
+{% block title %} Backup {% endblock %}
+{% block content %}
+<p class="muted">
+    Export downloads all action plans, plan items, executions, and execution item states as JSON.
+</p>
+
+<div class="toolbar">
+    <a class="btn btn-primary" href="/backup/export.json">Download Backup JSON</a>
+</div>
+
+<h2>Import</h2>
+<p class="muted">
+    Import replaces all current plans and executions with the contents of the backup file.
+</p>
+{% if notice %}
+<p class="muted">{% if notice.is_error %}Import failed: {% else %}Import complete: {% endif %}{{ notice.message }}</p>
+{% endif %}
+
+<form method="post" action="/backup/import" enctype="multipart/form-data" class="plan-form">
+    <p>
+        <label for="backup_file">Backup JSON File</label><br />
+        <input id="backup_file" type="file" name="backup_file" accept="application/json,.json" required />
+    </p>
+    <div class="toolbar">
+        <input type="submit" class="btn btn-primary" value="Import Backup JSON" />
+    </div>
+</form>
+{% endblock %}
