@@ -8,7 +8,7 @@ use sqlx::prelude::FromRow;
 use sqlx::{Sqlite, Transaction};
 use uuid::Uuid;
 
-use crate::{AppError, AppState};
+use crate::{AppError, AppState, format_unix_timestamp};
 
 #[derive(FromRow, Debug, Serialize)]
 pub struct ActionPlan {
@@ -221,10 +221,62 @@ pub async fn show_action_plan(
     .fetch_all(&state.db)
     .await?;
 
+    let active_execution_rows = sqlx::query_as!(
+        PlanExecutionActiveRow,
+        r#"
+        SELECT
+            id as "id!: uuid::Uuid",
+            started as "started!"
+        FROM action_plan_executions
+        WHERE action_plan = $1
+            AND (finished IS NULL OR finished <= 0)
+        ORDER BY started DESC
+        "#,
+        id
+    )
+    .fetch_all(&state.db)
+    .await?;
+
+    let finished_execution_rows = sqlx::query_as!(
+        PlanExecutionFinishedRow,
+        r#"
+        SELECT
+            id as "id!: uuid::Uuid",
+            started as "started!",
+            finished as "finished!"
+        FROM action_plan_executions
+        WHERE action_plan = $1
+            AND finished > 0
+        ORDER BY finished DESC
+        "#,
+        id
+    )
+    .fetch_all(&state.db)
+    .await?;
+
+    let active_executions = active_execution_rows
+        .into_iter()
+        .map(|row| PlanExecutionActive {
+            id: row.id,
+            started_display: format_unix_timestamp(row.started),
+        })
+        .collect();
+
+    let finished_executions = finished_execution_rows
+        .into_iter()
+        .map(|row| PlanExecutionFinished {
+            id: row.id,
+            started_display: format_unix_timestamp(row.started),
+            finished_display: format_unix_timestamp(row.finished),
+        })
+        .collect();
+
     let plan = ActionPlanShow {
         id: plan.id,
         name: plan.name,
         items,
+        active_executions,
+        finished_executions,
     };
 
     let template = state
@@ -249,11 +301,39 @@ pub struct ActionPlanShow {
     id: Uuid,
     name: String,
     items: Vec<ActionPlanItem>,
+    active_executions: Vec<PlanExecutionActive>,
+    finished_executions: Vec<PlanExecutionFinished>,
 }
 
 #[derive(Serialize)]
 pub struct ActionPlanItem {
     pub name: String,
+}
+
+#[derive(FromRow, Serialize)]
+struct PlanExecutionActive {
+    id: Uuid,
+    started_display: String,
+}
+
+#[derive(FromRow, Serialize)]
+struct PlanExecutionFinished {
+    id: Uuid,
+    started_display: String,
+    finished_display: String,
+}
+
+#[derive(FromRow)]
+struct PlanExecutionActiveRow {
+    id: Uuid,
+    started: i64,
+}
+
+#[derive(FromRow)]
+struct PlanExecutionFinishedRow {
+    id: Uuid,
+    started: i64,
+    finished: i64,
 }
 
 fn edit_action_plan(state: &AppState, plan: &ActionPlanEdit) -> Result<Html<String>, AppError> {

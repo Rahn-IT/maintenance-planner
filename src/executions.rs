@@ -6,30 +6,69 @@ use serde::Serialize;
 use sqlx::prelude::FromRow;
 use uuid::Uuid;
 
-use crate::{AppError, AppState, action_plan::ActionPlanItem};
+use crate::{AppError, AppState, action_plan::ActionPlanItem, format_unix_timestamp};
 
 pub async fn index(State(state): State<AppState>) -> Result<Html<String>, AppError> {
-    let executions = sqlx::query_as!(
-        ActionPlanExecutionListItem,
+    let unfinished_execution_rows = sqlx::query_as!(
+        UnfinishedExecutionListItemRow,
         r#"
         SELECT
             action_plan_executions.id as "id!: uuid::Uuid",
             action_plans.name as "action_plan_name!",
-            action_plan_executions.started,
-            action_plan_executions.finished
+            action_plan_executions.started as "started!"
         FROM action_plan_executions
         INNER JOIN action_plans ON action_plans.id = action_plan_executions.action_plan
+        WHERE action_plan_executions.finished IS NULL OR action_plan_executions.finished <= 0
         ORDER BY action_plan_executions.started DESC
         "#
     )
     .fetch_all(&state.db)
     .await?;
 
+    let finished_execution_rows = sqlx::query_as!(
+        FinishedExecutionListItemRow,
+        r#"
+        SELECT
+            action_plan_executions.id as "id!: uuid::Uuid",
+            action_plans.name as "action_plan_name!",
+            action_plan_executions.started as "started!",
+            action_plan_executions.finished as "finished!"
+        FROM action_plan_executions
+        INNER JOIN action_plans ON action_plans.id = action_plan_executions.action_plan
+        WHERE action_plan_executions.finished > 0
+        ORDER BY action_plan_executions.finished DESC
+        "#
+    )
+    .fetch_all(&state.db)
+    .await?;
+
+    let unfinished_executions = unfinished_execution_rows
+        .into_iter()
+        .map(|row| UnfinishedExecutionListItem {
+            id: row.id,
+            action_plan_name: row.action_plan_name,
+            started_display: format_unix_timestamp(row.started),
+        })
+        .collect();
+
+    let finished_executions = finished_execution_rows
+        .into_iter()
+        .map(|row| FinishedExecutionListItem {
+            id: row.id,
+            action_plan_name: row.action_plan_name,
+            started_display: format_unix_timestamp(row.started),
+            finished_display: format_unix_timestamp(row.finished),
+        })
+        .collect();
+
     let template = state
         .jinja
         .get_template("action_plan_execution_list.html")
         .expect("template is loaded");
-    let rendered = template.render(&ActionPlanExecutionList { executions })?;
+    let rendered = template.render(&ActionPlanExecutionList {
+        unfinished_executions,
+        finished_executions,
+    })?;
 
     Ok(Html(rendered))
 }
@@ -96,7 +135,7 @@ pub async fn create_post(
     tx.commit().await?;
 
     Ok(Redirect::to(&format!(
-        "/action_plan_execution/{}",
+        "/executions/{}",
         execution_id
     )))
 }
@@ -105,13 +144,14 @@ pub async fn show(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<Html<String>, AppError> {
-    let execution = sqlx::query!(
+    let execution = sqlx::query_as!(
+        ActionPlanExecutionShowRow,
         r#"
         SELECT
             action_plan_executions.id as "id!: uuid::Uuid",
             action_plans.id as "action_plan_id!: uuid::Uuid",
             action_plans.name as "action_plan_name!",
-            action_plan_executions.started
+            action_plan_executions.started as "started!"
         FROM action_plan_executions
         INNER JOIN action_plans ON action_plans.id = action_plan_executions.action_plan
         WHERE action_plan_executions.id = $1
@@ -146,7 +186,7 @@ pub async fn show(
         id: execution.id,
         action_plan_id: execution.action_plan_id,
         action_plan_name: execution.action_plan_name,
-        started: execution.started,
+        started_display: format_unix_timestamp(execution.started),
         items,
     };
 
@@ -164,17 +204,48 @@ struct ActionPlanExecutionShow {
     id: Uuid,
     action_plan_id: Uuid,
     action_plan_name: String,
-    started: i64,
+    started_display: String,
     items: Vec<ActionPlanItem>,
+}
+
+#[derive(FromRow)]
+struct ActionPlanExecutionShowRow {
+    id: Uuid,
+    action_plan_id: Uuid,
+    action_plan_name: String,
+    started: i64,
 }
 
 #[derive(Serialize)]
 struct ActionPlanExecutionList {
-    executions: Vec<ActionPlanExecutionListItem>,
+    unfinished_executions: Vec<UnfinishedExecutionListItem>,
+    finished_executions: Vec<FinishedExecutionListItem>,
 }
 
 #[derive(FromRow, Serialize)]
-struct ActionPlanExecutionListItem {
+struct UnfinishedExecutionListItem {
+    id: Uuid,
+    action_plan_name: String,
+    started_display: String,
+}
+
+#[derive(FromRow, Serialize)]
+struct FinishedExecutionListItem {
+    id: Uuid,
+    action_plan_name: String,
+    started_display: String,
+    finished_display: String,
+}
+
+#[derive(FromRow)]
+struct UnfinishedExecutionListItemRow {
+    id: Uuid,
+    action_plan_name: String,
+    started: i64,
+}
+
+#[derive(FromRow)]
+struct FinishedExecutionListItemRow {
     id: Uuid,
     action_plan_name: String,
     started: i64,

@@ -20,4 +20,29 @@
         </tbody>
     </table>
 </div>
+
+<h2>Active Executions</h2>
+<div class="plan-list">
+    {% for execution in active_executions %}
+    <a class="plan-card" href="/executions/{{ execution.id }}">
+        <h2>Execution {{ execution.id }}</h2>
+        <p class="muted">Started: {{ execution.started_display }}</p>
+    </a>
+    {% else %}
+    <p class="muted">No active executions.</p>
+    {% endfor %}
+</div>
+
+<h2>Finished Executions</h2>
+<div class="plan-list">
+    {% for execution in finished_executions %}
+    <a class="plan-card" href="/executions/{{ execution.id }}">
+        <h2>Execution {{ execution.id }}</h2>
+        <p class="muted">Started: {{ execution.started_display }}</p>
+        <p class="muted">Finished: {{ execution.finished_display }}</p>
+    </a>
+    {% else %}
+    <p class="muted">No finished executions yet.</p>
+    {% endfor %}
+</div>
 {% endblock %}

@@ -6,6 +6,7 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{get, post},
 };
+use chrono::{Local, TimeZone};
 use sqlx::{Sqlite, SqlitePool, migrate::MigrateDatabase};
 use tokio::signal;
 
@@ -187,4 +188,15 @@ fn router() -> Router<AppState> {
                 include_bytes!("../assets/static/script.js"),
             )),
         )
+}
+
+pub fn format_unix_timestamp(timestamp: i64) -> String {
+    if timestamp <= 0 {
+        return "Unknown".to_string();
+    }
+
+    match Local.timestamp_opt(timestamp, 0).single() {
+        Some(datetime) => datetime.format("%Y-%m-%d %H:%M").to_string(),
+        None => "Unknown".to_string(),
+    }
 }
