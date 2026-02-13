@@ -198,6 +198,8 @@ fn router() -> Router<AppState> {
         .route("/action_plan_execution/{id}", get(executions::show))
         .route("/action_plan/{id}", get(action_plan::show_action_plan))
         .route("/action_plan/{id}/execute", post(executions::create_post))
+        .route("/action_plan/{id}/delete", post(action_plan::delete_post))
+        .route("/action_plan/{id}/undelete", post(action_plan::undelete_post))
         .route("/action_plan/new", get(action_plan::new_get))
         .route("/action_plan/new", post(action_plan::new_post))
         .route("/action_plan/{id}/edit", get(action_plan::edit_get))

@@ -29,7 +29,8 @@ pub async fn export_json(State(state): State<AppState>) -> Result<impl IntoRespo
         r#"
         SELECT
             id as "id: uuid::Uuid",
-            name
+            name,
+            deleted_at as "deleted_at?"
         FROM action_plans
         ORDER BY name ASC
         "#
@@ -57,6 +58,7 @@ pub async fn export_json(State(state): State<AppState>) -> Result<impl IntoRespo
         action_plans.push(BackupActionPlan {
             id: plan.id,
             name: plan.name,
+            deleted_at: plan.deleted_at,
             items: items
                 .into_iter()
                 .map(|item| BackupPlanItem {
@@ -218,9 +220,10 @@ pub async fn import_json(
 
     for plan in &backup.action_plans {
         sqlx::query!(
-            "INSERT INTO action_plans (id, name) VALUES ($1, $2)",
+            "INSERT INTO action_plans (id, name, deleted_at) VALUES ($1, $2, $3)",
             plan.id,
-            plan.name
+            plan.name,
+            plan.deleted_at
         )
         .execute(&mut *tx)
         .await?;
@@ -324,6 +327,7 @@ pub struct BackupFile {
 pub struct BackupActionPlan {
     id: Uuid,
     name: String,
+    deleted_at: Option<i64>,
     items: Vec<BackupPlanItem>,
 }
 

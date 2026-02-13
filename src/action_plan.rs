@@ -15,12 +15,14 @@ use crate::{AppError, AppState, format_unix_timestamp};
 pub struct ActionPlan {
     pub id: uuid::Uuid,
     pub name: String,
+    pub deleted_at: Option<i64>,
 }
 
 #[derive(Serialize)]
 pub struct ActionPlanList {
     action_plans: Vec<ActionPlanListItem>,
     current_sort: String,
+    show_deleted: bool,
 }
 
 #[derive(Serialize)]
@@ -36,13 +38,37 @@ pub async fn index(
     Query(query): Query<ActionPlanListQuery>,
 ) -> Result<Html<String>, AppError> {
     let sort = query.sort.unwrap_or_else(|| "name".to_string());
+    let show_deleted = query.deleted.unwrap_or(false);
 
-    let action_plans = sqlx::query_as!(
-        ActionPlan,
-        r#"SELECT id as "id: uuid::Uuid", name FROM action_plans"#
-    )
-    .fetch_all(&state.db)
-    .await?;
+    let action_plans = if show_deleted {
+        sqlx::query_as!(
+            ActionPlan,
+            r#"
+            SELECT
+                id as "id: uuid::Uuid",
+                name,
+                deleted_at as "deleted_at?"
+            FROM action_plans
+            WHERE deleted_at > 0
+            "#
+        )
+        .fetch_all(&state.db)
+        .await?
+    } else {
+        sqlx::query_as!(
+            ActionPlan,
+            r#"
+            SELECT
+                id as "id: uuid::Uuid",
+                name,
+                deleted_at as "deleted_at?"
+            FROM action_plans
+            WHERE deleted_at IS NULL OR deleted_at <= 0
+            "#
+        )
+        .fetch_all(&state.db)
+        .await?
+    };
 
     let mut action_plan_list = Vec::with_capacity(action_plans.len());
     for action_plan in action_plans {
@@ -125,6 +151,7 @@ pub async fn index(
     let rendered = template.render(&ActionPlanList {
         action_plans,
         current_sort: sort,
+        show_deleted,
     })?;
 
     Ok(Html(rendered))
@@ -157,7 +184,7 @@ pub async fn new_post(
     let plan_id = Uuid::new_v4();
 
     sqlx::query!(
-        "INSERT INTO action_plans (id, name) VALUES ($1, $2)",
+        "INSERT INTO action_plans (id, name, deleted_at) VALUES ($1, $2, NULL)",
         plan_id,
         form.name
     )
@@ -176,7 +203,15 @@ pub async fn edit_get(
 
     let plan = sqlx::query_as!(
         ActionPlan,
-        r#"SELECT id as "id: uuid::Uuid", name FROM action_plans WHERE id = $1"#,
+        r#"
+        SELECT
+            id as "id: uuid::Uuid",
+            name,
+            deleted_at as "deleted_at?"
+        FROM action_plans
+        WHERE id = $1
+            AND (deleted_at IS NULL OR deleted_at <= 0)
+        "#,
         id
     )
     .fetch_optional(&state.db)
@@ -231,7 +266,7 @@ pub async fn edit_post(
     let mut tx = state.db.begin().await?;
 
     let update_result = sqlx::query!(
-        "UPDATE action_plans SET name = $1 WHERE id = $2",
+        "UPDATE action_plans SET name = $1 WHERE id = $2 AND (deleted_at IS NULL OR deleted_at <= 0)",
         form.name,
         id
     )
@@ -375,7 +410,14 @@ pub async fn show_action_plan(
 ) -> Result<Html<String>, AppError> {
     let plan = sqlx::query_as!(
         ActionPlan,
-        r#"SELECT id as "id: uuid::Uuid", name FROM action_plans WHERE id = $1"#,
+        r#"
+        SELECT
+            id as "id: uuid::Uuid",
+            name,
+            deleted_at as "deleted_at?"
+        FROM action_plans
+        WHERE id = $1
+        "#,
         id
     )
     .fetch_optional(&state.db)
@@ -456,6 +498,11 @@ pub async fn show_action_plan(
     let plan = ActionPlanShow {
         id: plan.id,
         name: plan.name,
+        is_deleted: plan.deleted_at.map(|value| value > 0).unwrap_or(false),
+        deleted_at_display: plan
+            .deleted_at
+            .filter(|value| *value > 0)
+            .map(format_unix_timestamp),
         items,
         active_executions,
         finished_executions,
@@ -471,6 +518,60 @@ pub async fn show_action_plan(
     Ok(Html(rendered))
 }
 
+pub async fn delete_post(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Redirect, AppError> {
+    let now = unix_now();
+    let result = sqlx::query!(
+        r#"
+        UPDATE action_plans
+        SET deleted_at = $1
+        WHERE id = $2
+            AND (deleted_at IS NULL OR deleted_at <= 0)
+        "#,
+        now,
+        id
+    )
+    .execute(&state.db)
+    .await?;
+
+    if result.rows_affected() == 0 {
+        return Err(AppError::not_found_for("Action Plan", format!(
+            "No active action plan exists for id: {}",
+            id
+        )));
+    }
+
+    Ok(Redirect::to("/"))
+}
+
+pub async fn undelete_post(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Redirect, AppError> {
+    let result = sqlx::query!(
+        r#"
+        UPDATE action_plans
+        SET deleted_at = NULL
+        WHERE id = $1
+            AND deleted_at > 0
+        "#,
+        id
+    )
+    .execute(&state.db)
+    .await?;
+
+    if result.rows_affected() == 0 {
+        return Err(AppError::not_found_for("Action Plan", format!(
+            "No deleted action plan exists for id: {}",
+            id
+        )));
+    }
+
+    Ok(Redirect::to(&format!("/action_plan/{}", id)))
+}
+
 #[derive(Serialize)]
 pub struct ActionPlanEdit {
     id: Option<Uuid>,
@@ -484,6 +585,8 @@ pub struct ActionPlanEdit {
 pub struct ActionPlanShow {
     id: Uuid,
     name: String,
+    is_deleted: bool,
+    deleted_at_display: Option<String>,
     items: Vec<ActionPlanItem>,
     active_executions: Vec<PlanExecutionActive>,
     finished_executions: Vec<PlanExecutionFinished>,
@@ -548,6 +651,7 @@ pub struct EditContext {
 #[derive(Debug, Default, Deserialize)]
 pub struct ActionPlanListQuery {
     sort: Option<String>,
+    deleted: Option<bool>,
 }
 
 struct ActionPlanListSortItem {
@@ -556,4 +660,11 @@ struct ActionPlanListSortItem {
     active_execution_id: Option<Uuid>,
     last_finished_display: Option<String>,
     last_execution_unix: Option<i64>,
+}
+
+fn unix_now() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|duration| duration.as_secs() as i64)
+        .unwrap_or(0)
 }

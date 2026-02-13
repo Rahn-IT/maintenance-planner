@@ -1,10 +1,12 @@
 {% extends 'layout.html' %} {% block title %} Action Plans {% endblock %}
 {% block top_actions %}
 <a class="btn btn-primary" href="/action_plan/new">New Action Plan</a>
+<a class="btn {% if not show_deleted %}is-active{% endif %}" href="/?sort={{ current_sort }}&deleted=false">Active Plans</a>
+<a class="btn {% if show_deleted %}is-active{% endif %}" href="/?sort={{ current_sort }}&deleted=true">Deleted Plans</a>
 <span class="muted">Sort:</span>
-<a class="btn {% if current_sort == 'name' %}is-active{% endif %}" href="/?sort=name">A-Z</a>
-<a class="btn {% if current_sort == 'last_execution_desc' %}is-active{% endif %}" href="/?sort=last_execution_desc">Newest Execution</a>
-<a class="btn {% if current_sort == 'last_execution_asc' %}is-active{% endif %}" href="/?sort=last_execution_asc">Oldest Execution</a>
+<a class="btn {% if current_sort == 'name' %}is-active{% endif %}" href="/?sort=name&deleted={{ show_deleted }}">A-Z</a>
+<a class="btn {% if current_sort == 'last_execution_desc' %}is-active{% endif %}" href="/?sort=last_execution_desc&deleted={{ show_deleted }}">Newest Execution</a>
+<a class="btn {% if current_sort == 'last_execution_asc' %}is-active{% endif %}" href="/?sort=last_execution_asc&deleted={{ show_deleted }}">Oldest Execution</a>
 {% endblock %}
 {% block content %}
 <div class="plan-list">
@@ -16,7 +18,9 @@
         tabindex="0"
     >
         <h2>{{ action_plan.name }}</h2>
-        {% if action_plan.active_execution_id %}
+        {% if show_deleted %}
+        <p class="muted">This action plan is deleted.</p>
+        {% elif action_plan.active_execution_id %}
         <p><a href="/executions/{{ action_plan.active_execution_id }}">Continue active execution</a></p>
         {% elif action_plan.last_finished_display %}
         <p class="muted">Last finished: {{ action_plan.last_finished_display }}</p>
@@ -25,7 +29,7 @@
         {% endif %}
     </div>
     {% else %}
-    <p class="muted">No action plans yet. Create your first one.</p>
+    <p class="muted">{% if show_deleted %}No deleted action plans.{% else %}No action plans yet. Create your first one.{% endif %}</p>
     {% endfor %}
 </div>
 {% endblock %}

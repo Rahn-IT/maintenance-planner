@@ -81,7 +81,12 @@ pub async fn create_post(
     let mut tx = state.db.begin().await?;
 
     let plan_exists = sqlx::query_scalar!(
-        "SELECT id as \"id: uuid::Uuid\" FROM action_plans WHERE id = $1",
+        r#"
+        SELECT id as "id: uuid::Uuid"
+        FROM action_plans
+        WHERE id = $1
+            AND (deleted_at IS NULL OR deleted_at <= 0)
+        "#,
         id
     )
     .fetch_optional(&mut *tx)
@@ -152,6 +157,7 @@ pub async fn show(
             action_plan_executions.id as "id!: uuid::Uuid",
             action_plans.id as "action_plan_id!: uuid::Uuid",
             action_plans.name as "action_plan_name!",
+            action_plans.deleted_at as "action_plan_deleted_at?",
             action_plan_executions.started as "started!",
             action_plan_executions.finished as "finished?"
         FROM action_plan_executions
@@ -215,6 +221,10 @@ pub async fn show(
         can_reopen: execution
             .finished
             .map(|value| value > 0 && unix_now().saturating_sub(value) <= 24 * 60 * 60)
+            .unwrap_or(false),
+        is_action_plan_deleted: execution
+            .action_plan_deleted_at
+            .map(|value| value > 0)
             .unwrap_or(false),
         can_complete: !items.is_empty() && items.iter().all(|item| item.is_finished),
         items,
@@ -466,6 +476,7 @@ struct ActionPlanExecutionShow {
     finished_display: Option<String>,
     is_completed: bool,
     can_reopen: bool,
+    is_action_plan_deleted: bool,
     can_complete: bool,
     items: Vec<ExecutionItem>,
 }
@@ -501,6 +512,7 @@ struct ActionPlanExecutionShowRow {
     id: Uuid,
     action_plan_id: Uuid,
     action_plan_name: String,
+    action_plan_deleted_at: Option<i64>,
     started: i64,
     finished: Option<i64>,
 }

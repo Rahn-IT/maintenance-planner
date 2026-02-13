@@ -1,6 +1,14 @@
 {% extends 'layout.html' %} {% block title %} Action Plan {% endblock %}
 {% block top_actions %}
+{% if is_deleted %}
+<form method="post" action="/action_plan/{{id}}/undelete">
+    <button class="btn btn-primary" type="submit">Undelete</button>
+</form>
+{% else %}
 <a class="btn" href="/action_plan/{{id}}/edit">Edit</a>
+<form method="post" action="/action_plan/{{id}}/delete">
+    <button class="btn btn-danger" type="submit">Delete</button>
+</form>
 {% if active_execution_link %}
 <a class="btn btn-primary" href="/executions/{{ active_execution_link }}">Continue Active Execution</a>
 {% else %}
@@ -8,10 +16,14 @@
     <button class="btn btn-primary" type="submit">Start Execution</button>
 </form>
 {% endif %}
+{% endif %}
 {% endblock %}
 {% block content %}
 <div class="details-card">
     <div class="plan-name">{{ name }}</div>
+    {% if is_deleted %}
+    <p class="muted">Deleted: {{ deleted_at_display }}</p>
+    {% endif %}
     <table class="items-table">
         <thead>
             <tr><th>Task</th></tr>

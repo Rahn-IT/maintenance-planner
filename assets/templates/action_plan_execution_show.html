@@ -1,7 +1,7 @@
 {% extends 'layout.html' %} {% block title %} Todo List {% endblock %}
 {% block top_actions %}
 <a class="btn" href="/action_plan/{{ action_plan_id }}">Back to Template</a>
-{% if not is_completed %}
+{% if not is_completed and not is_action_plan_deleted %}
 <a class="btn" href="/action_plan/{{ action_plan_id }}/edit?execution_id={{ id }}">Edit Plan</a>
 {% endif %}
 {% endblock %}
