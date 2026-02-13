@@ -90,6 +90,7 @@ pub async fn new_get(State(state): State<AppState>) -> Result<Html<String>, AppE
     let plan = ActionPlanEdit {
         id: None,
         form_action: "/action_plan/new".to_string(),
+        cancel_url: "/".to_string(),
         name: String::new(),
         items: Vec::new(),
     };
@@ -157,6 +158,7 @@ pub async fn edit_get(
     let plan = ActionPlanEdit {
         id: Some(plan.id),
         form_action: format!("/action_plan/{}/edit", plan.id),
+        cancel_url: format!("/action_plan/{}", plan.id),
         name: plan.name,
         items,
     };
@@ -343,6 +345,7 @@ pub async fn show_action_plan(
 pub struct ActionPlanEdit {
     id: Option<Uuid>,
     form_action: String,
+    cancel_url: String,
     name: String,
     items: Vec<ActionPlanItem>,
 }

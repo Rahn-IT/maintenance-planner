@@ -134,6 +134,10 @@ a:hover {
     transition: transform 0.12s ease, box-shadow 0.12s ease;
 }
 
+.plan-card-clickable {
+    cursor: pointer;
+}
+
 .plan-card h2 {
     margin: 0;
     color: var(--text);

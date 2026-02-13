@@ -1,6 +1,6 @@
 {% extends 'layout.html' %} {% block title %} Edit Action Plan {% endblock %} {% block content %}
 <div class="details-card">
-    <form method="post" action="{{ form_action }}" class="plan-form">
+    <form id="action-plan-form" method="post" action="{{ form_action }}" class="plan-form">
         <label for="name">Name</label>
 
         <input
@@ -24,8 +24,11 @@
         </table>
         <div class="form-actions">
             <button class="add-row btn" type="button" data-table="items">Add Item</button>
-            <input class="btn btn-primary" type="submit" value="Save">
         </div>
     </form>
 </div>
+{% endblock %}
+{% block bottom_actions %}
+<a class="btn" href="{{ cancel_url }}">Cancel</a>
+<button class="btn btn-primary" type="submit" form="action-plan-form">Save</button>
 {% endblock %}

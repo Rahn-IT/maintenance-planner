@@ -23,7 +23,8 @@ window.onload = function () {
       const tableId = this.getAttribute("data-table");
       console.log("table id", tableId);
       const table = document.getElementById(tableId);
-      const templateRow = table.querySelector(".template");
+      const tableBody = table.tBodies[0] || table;
+      const templateRow = tableBody.querySelector(".template");
 
       // Clone the template row
       const newRow = templateRow.cloneNode(true);
@@ -35,7 +36,7 @@ window.onload = function () {
       });
 
       // Append the new row to the table
-      table.appendChild(newRow);
+      tableBody.appendChild(newRow);
 
       // Add event listener to the new "Remove" button
       newRow.querySelector(".remove").addEventListener("click", function () {
@@ -99,4 +100,29 @@ window.onload = function () {
 
     updateCompleteExecutionLinkState();
   }
+
+  document.querySelectorAll(".plan-card-clickable").forEach((card) => {
+    card.addEventListener("click", function (event) {
+      if (event.target.closest("a, button, input, form, label, textarea, select")) {
+        return;
+      }
+
+      const href = this.getAttribute("data-href");
+      if (href) {
+        window.location.href = href;
+      }
+    });
+
+    card.addEventListener("keydown", function (event) {
+      if (event.key !== "Enter" && event.key !== " ") {
+        return;
+      }
+
+      event.preventDefault();
+      const href = this.getAttribute("data-href");
+      if (href) {
+        window.location.href = href;
+      }
+    });
+  });
 };
