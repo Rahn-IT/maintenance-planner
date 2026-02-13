@@ -6,6 +6,7 @@
     <div class="plan-name">{{ action_plan_name }}</div>
     <p class="muted">Execution ID: {{ id }}</p>
     <p class="muted">Started: {{ started_display }}</p>
+    <p class="muted">Completed: {% if finished_display %}{{ finished_display }}{% else %}-{% endif %}</p>
     <table class="items-table">
         <thead>
             <tr><th>Task</th><th class="done-col">Done</th></tr>
@@ -27,6 +28,7 @@
                         class="execution-item-toggle"
                         data-url="/execution-items/{{ item.id }}/finished"
                         {% if item.is_finished %}checked{% endif %}
+                        {% if is_completed %}disabled{% endif %}
                     />
                 </td>
             </tr>
@@ -36,4 +38,19 @@
         </tbody>
     </table>
 </div>
+{% if not is_completed %}
+<div class="toolbar execution-actions">
+    <a
+        class="btn btn-primary execution-complete-link {% if not can_complete %}is-disabled{% endif %}"
+        href="/executions/{{ id }}/complete"
+        aria-disabled="{% if can_complete %}false{% else %}true{% endif %}"
+    >
+        Complete Execution
+    </a>
+</div>
+{% elif can_reopen %}
+<div class="toolbar execution-actions">
+    <a class="btn" href="/executions/{{ id }}/reopen">Reopen Execution</a>
+</div>
+{% endif %}
 {% endblock %}

@@ -44,6 +44,13 @@ impl AppError {
             message: message.into(),
         }
     }
+
+    pub fn conflict(message: impl Into<String>) -> Self {
+        Self {
+            status: StatusCode::CONFLICT,
+            message: message.into(),
+        }
+    }
 }
 
 impl<E> From<E> for AppError
@@ -161,6 +168,8 @@ fn router() -> Router<AppState> {
         .route("/", get(action_plan::index))
         .route("/executions", get(executions::index))
         .route("/executions/{id}", get(executions::show))
+        .route("/executions/{id}/complete", get(executions::complete_get))
+        .route("/executions/{id}/reopen", get(executions::reopen_get))
         .route(
             "/execution-items/{id}/finished",
             post(executions::set_item_finished_post),

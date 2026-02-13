@@ -105,6 +105,10 @@ a:hover {
     margin: 0;
 }
 
+.execution-actions {
+    margin-top: 1.5rem;
+}
+
 .details-card {
     background: var(--card-2);
     border: 1px solid var(--line);
@@ -264,6 +268,13 @@ input[type="submit"].btn-primary:hover {
 .btn-danger:hover {
     background: #ffe9e7;
     color: var(--danger-hover);
+}
+
+.btn.is-disabled,
+.btn[aria-disabled="true"] {
+    opacity: 0.55;
+    cursor: not-allowed;
+    pointer-events: none;
 }
 
 .muted {

@@ -1,4 +1,22 @@
 window.onload = function () {
+  const completeExecutionLink = document.querySelector(".execution-complete-link");
+  const updateCompleteExecutionLinkState = () => {
+    if (!completeExecutionLink) {
+      return;
+    }
+
+    const checkboxes = Array.from(document.querySelectorAll(".execution-item-toggle"));
+    const allChecked = checkboxes.length > 0 && checkboxes.every((checkbox) => checkbox.checked);
+
+    if (allChecked) {
+      completeExecutionLink.classList.remove("is-disabled");
+      completeExecutionLink.setAttribute("aria-disabled", "false");
+    } else {
+      completeExecutionLink.classList.add("is-disabled");
+      completeExecutionLink.setAttribute("aria-disabled", "true");
+    }
+  };
+
   // Add event listeners to all "Add Row" buttons
   document.querySelectorAll(".add-row").forEach((button) => {
     button.addEventListener("click", function () {
@@ -67,7 +85,18 @@ window.onload = function () {
         alert("Could not update item status.");
       } finally {
         this.disabled = false;
+        updateCompleteExecutionLinkState();
       }
     });
   });
+
+  if (completeExecutionLink) {
+    completeExecutionLink.addEventListener("click", function (event) {
+      if (this.getAttribute("aria-disabled") === "true") {
+        event.preventDefault();
+      }
+    });
+
+    updateCompleteExecutionLinkState();
+  }
 };

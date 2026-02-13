@@ -152,7 +152,8 @@ pub async fn show(
             action_plan_executions.id as "id!: uuid::Uuid",
             action_plans.id as "action_plan_id!: uuid::Uuid",
             action_plans.name as "action_plan_name!",
-            action_plan_executions.started as "started!"
+            action_plan_executions.started as "started!",
+            action_plan_executions.finished as "finished?"
         FROM action_plan_executions
         INNER JOIN action_plans ON action_plans.id = action_plan_executions.action_plan
         WHERE action_plan_executions.id = $1
@@ -189,7 +190,7 @@ pub async fn show(
     )
     .fetch_all(&state.db)
     .await?;
-    let items = item_rows
+    let items: Vec<ExecutionItem> = item_rows
         .into_iter()
         .map(|row| ExecutionItem {
             id: row.id,
@@ -207,6 +208,16 @@ pub async fn show(
         action_plan_id: execution.action_plan_id,
         action_plan_name: execution.action_plan_name,
         started_display: format_unix_timestamp(execution.started),
+        finished_display: execution
+            .finished
+            .filter(|value| *value > 0)
+            .map(format_unix_timestamp),
+        is_completed: execution.finished.map(|value| value > 0).unwrap_or(false),
+        can_reopen: execution
+            .finished
+            .map(|value| value > 0 && unix_now().saturating_sub(value) <= 24 * 60 * 60)
+            .unwrap_or(false),
+        can_complete: !items.is_empty() && items.iter().all(|item| item.is_finished),
         items,
     };
 
@@ -217,6 +228,104 @@ pub async fn show(
     let rendered = template.render(&view)?;
 
     Ok(Html(rendered))
+}
+
+pub async fn complete_get(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Redirect, AppError> {
+    let execution_exists = sqlx::query_scalar!(
+        r#"SELECT id as "id: uuid::Uuid" FROM action_plan_executions WHERE id = $1"#,
+        id
+    )
+    .fetch_optional(&state.db)
+    .await?;
+    if execution_exists.is_none() {
+        return Err(AppError::not_found(format!(
+            "No todo list exists for execution id: {}",
+            id
+        )));
+    }
+
+    let incomplete_count = sqlx::query_scalar!(
+        r#"
+        SELECT COUNT(*) as "count!: i64"
+        FROM action_item_executions
+        WHERE action_plan_execution = $1
+            AND (finished IS NULL OR finished <= 0)
+        "#,
+        id
+    )
+    .fetch_one(&state.db)
+    .await?;
+
+    if incomplete_count > 0 {
+        return Err(AppError::conflict(
+            "All items must be checked before completing this execution.",
+        ));
+    }
+
+    let finished_at = unix_now();
+    sqlx::query!(
+        r#"
+        UPDATE action_plan_executions
+        SET finished = $1
+        WHERE id = $2
+            AND (finished IS NULL OR finished <= 0)
+        "#,
+        finished_at,
+        id
+    )
+    .execute(&state.db)
+    .await?;
+
+    Ok(Redirect::to(&format!("/executions/{}", id)))
+}
+
+pub async fn reopen_get(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Redirect, AppError> {
+    let execution = sqlx::query!(
+        r#"
+        SELECT finished as "finished?"
+        FROM action_plan_executions
+        WHERE id = $1
+        "#,
+        id
+    )
+    .fetch_optional(&state.db)
+    .await?;
+
+    let Some(execution) = execution else {
+        return Err(AppError::not_found(format!(
+            "No todo list exists for execution id: {}",
+            id
+        )));
+    };
+
+    let Some(finished_at) = execution.finished else {
+        return Err(AppError::conflict("Execution is already open."));
+    };
+
+    if finished_at <= 0 || unix_now().saturating_sub(finished_at) > 24 * 60 * 60 {
+        return Err(AppError::conflict(
+            "Execution can only be reopened within 24 hours of completion.",
+        ));
+    }
+
+    sqlx::query!(
+        r#"
+        UPDATE action_plan_executions
+        SET finished = NULL
+        WHERE id = $1
+        "#,
+        id
+    )
+    .execute(&state.db)
+    .await?;
+
+    Ok(Redirect::to(&format!("/executions/{}", id)))
 }
 
 pub async fn set_item_finished_post(
@@ -251,6 +360,10 @@ struct ActionPlanExecutionShow {
     action_plan_id: Uuid,
     action_plan_name: String,
     started_display: String,
+    finished_display: Option<String>,
+    is_completed: bool,
+    can_reopen: bool,
+    can_complete: bool,
     items: Vec<ExecutionItem>,
 }
 
@@ -286,6 +399,7 @@ struct ActionPlanExecutionShowRow {
     action_plan_id: Uuid,
     action_plan_name: String,
     started: i64,
+    finished: Option<i64>,
 }
 
 #[derive(Serialize)]
