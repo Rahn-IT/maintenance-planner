@@ -32,4 +32,32 @@ window.onload = function () {
       this.closest("tr").remove();
     });
   });
+
+  document.querySelectorAll(".execution-item-toggle").forEach((checkbox) => {
+    checkbox.addEventListener("change", async function () {
+      const previousChecked = !this.checked;
+      const url = this.getAttribute("data-url");
+      this.disabled = true;
+
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ finished: this.checked }),
+        });
+
+        if (!response.ok) {
+          this.checked = previousChecked;
+          alert("Could not update item status.");
+        }
+      } catch (error) {
+        this.checked = previousChecked;
+        alert("Could not update item status.");
+      } finally {
+        this.disabled = false;
+      }
+    });
+  });
 };

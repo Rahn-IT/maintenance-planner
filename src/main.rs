@@ -161,6 +161,10 @@ fn router() -> Router<AppState> {
         .route("/", get(action_plan::index))
         .route("/executions", get(executions::index))
         .route("/executions/{id}", get(executions::show))
+        .route(
+            "/execution-items/{id}/finished",
+            post(executions::set_item_finished_post),
+        )
         .route("/action_plan_execution/{id}", get(executions::show))
         .route("/action_plan/{id}", get(action_plan::show_action_plan))
         .route("/action_plan/{id}/execute", post(executions::create_post))

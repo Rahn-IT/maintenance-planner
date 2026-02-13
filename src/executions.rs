@@ -1,12 +1,14 @@
 use axum::{
+    Json,
     extract::{Path, State},
+    http::StatusCode,
     response::{Html, Redirect},
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use sqlx::prelude::FromRow;
 use uuid::Uuid;
 
-use crate::{AppError, AppState, action_plan::ActionPlanItem, format_unix_timestamp};
+use crate::{AppError, AppState, format_unix_timestamp};
 
 pub async fn index(State(state): State<AppState>) -> Result<Html<String>, AppError> {
     let unfinished_execution_rows = sqlx::query_as!(
@@ -167,10 +169,16 @@ pub async fn show(
         )));
     };
 
-    let items = sqlx::query_as!(
-        ActionPlanItem,
+    let item_rows = sqlx::query_as!(
+        ExecutionItemRow,
         r#"
-        SELECT actions.name as "name!"
+        SELECT
+            action_item_executions.id as "id!: uuid::Uuid",
+            actions.name as "name!",
+            CASE
+                WHEN action_item_executions.finished IS NULL OR action_item_executions.finished <= 0 THEN 0
+                ELSE 1
+            END as "is_finished!: i64"
         FROM action_item_executions
         INNER JOIN action_items ON action_items.id = action_item_executions.action_item
         INNER JOIN actions ON actions.id = action_items.action
@@ -181,6 +189,14 @@ pub async fn show(
     )
     .fetch_all(&state.db)
     .await?;
+    let items = item_rows
+        .into_iter()
+        .map(|row| ExecutionItem {
+            id: row.id,
+            name: row.name,
+            is_finished: row.is_finished != 0,
+        })
+        .collect();
 
     let view = ActionPlanExecutionShow {
         id: execution.id,
@@ -199,13 +215,56 @@ pub async fn show(
     Ok(Html(rendered))
 }
 
+pub async fn set_item_finished_post(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<SetItemFinishedRequest>,
+) -> Result<StatusCode, AppError> {
+    let finished = if body.finished { Some(unix_now()) } else { None };
+    let result = sqlx::query!(
+        "UPDATE action_item_executions SET finished = $1 WHERE id = $2",
+        finished,
+        id
+    )
+    .execute(&state.db)
+    .await?;
+
+    if result.rows_affected() == 0 {
+        return Err(AppError::not_found(format!(
+            "No execution item exists for id: {}",
+            id
+        )));
+    }
+
+    Ok(StatusCode::NO_CONTENT)
+}
+
 #[derive(Serialize)]
 struct ActionPlanExecutionShow {
     id: Uuid,
     action_plan_id: Uuid,
     action_plan_name: String,
     started_display: String,
-    items: Vec<ActionPlanItem>,
+    items: Vec<ExecutionItem>,
+}
+
+#[derive(FromRow, Serialize)]
+struct ExecutionItem {
+    id: Uuid,
+    name: String,
+    is_finished: bool,
+}
+
+#[derive(FromRow)]
+struct ExecutionItemRow {
+    id: Uuid,
+    name: String,
+    is_finished: i64,
+}
+
+#[derive(Deserialize)]
+pub struct SetItemFinishedRequest {
+    finished: bool,
 }
 
 #[derive(FromRow)]

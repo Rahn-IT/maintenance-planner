@@ -201,6 +201,12 @@ input[type="text"]:focus {
     white-space: nowrap;
 }
 
+.done-col {
+    width: 1%;
+    white-space: nowrap;
+    text-align: right;
+}
+
 .form-actions {
     margin-top: 0.95rem;
     display: flex;
