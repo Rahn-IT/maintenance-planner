@@ -1,7 +1,6 @@
 use axum::{
     Json,
     extract::{Path, State},
-    http::StatusCode,
     response::{Html, Redirect},
 };
 use serde::{Deserialize, Serialize};
@@ -175,6 +174,7 @@ pub async fn show(
         SELECT
             action_item_executions.id as "id!: uuid::Uuid",
             actions.name as "name!",
+            action_item_executions.finished as "finished?",
             CASE
                 WHEN action_item_executions.finished IS NULL OR action_item_executions.finished <= 0 THEN 0
                 ELSE 1
@@ -195,6 +195,10 @@ pub async fn show(
             id: row.id,
             name: row.name,
             is_finished: row.is_finished != 0,
+            finished_display: row
+                .finished
+                .filter(|value| *value > 0)
+                .map(format_unix_timestamp),
         })
         .collect();
 
@@ -219,7 +223,7 @@ pub async fn set_item_finished_post(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
     Json(body): Json<SetItemFinishedRequest>,
-) -> Result<StatusCode, AppError> {
+) -> Result<Json<SetItemFinishedResponse>, AppError> {
     let finished = if body.finished { Some(unix_now()) } else { None };
     let result = sqlx::query!(
         "UPDATE action_item_executions SET finished = $1 WHERE id = $2",
@@ -236,7 +240,9 @@ pub async fn set_item_finished_post(
         )));
     }
 
-    Ok(StatusCode::NO_CONTENT)
+    let finished_display = finished.map(format_unix_timestamp);
+
+    Ok(Json(SetItemFinishedResponse { finished_display }))
 }
 
 #[derive(Serialize)]
@@ -248,23 +254,30 @@ struct ActionPlanExecutionShow {
     items: Vec<ExecutionItem>,
 }
 
-#[derive(FromRow, Serialize)]
+#[derive(Serialize)]
 struct ExecutionItem {
     id: Uuid,
     name: String,
     is_finished: bool,
+    finished_display: Option<String>,
 }
 
 #[derive(FromRow)]
 struct ExecutionItemRow {
     id: Uuid,
     name: String,
+    finished: Option<i64>,
     is_finished: i64,
 }
 
 #[derive(Deserialize)]
 pub struct SetItemFinishedRequest {
     finished: bool,
+}
+
+#[derive(Serialize)]
+pub struct SetItemFinishedResponse {
+    finished_display: Option<String>,
 }
 
 #[derive(FromRow)]

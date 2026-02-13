@@ -13,7 +13,14 @@
         <tbody>
             {% for item in items %}
             <tr>
-                <td>{{ item.name }}</td>
+                <td>
+                    <div>{{ item.name }}</div>
+                    <div class="muted finished-at">
+                        {% if item.finished_display %}
+                        Finished: {{ item.finished_display }}
+                        {% endif %}
+                    </div>
+                </td>
                 <td class="done-col">
                     <input
                         type="checkbox"

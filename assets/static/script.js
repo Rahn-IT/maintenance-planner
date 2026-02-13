@@ -51,6 +51,16 @@ window.onload = function () {
         if (!response.ok) {
           this.checked = previousChecked;
           alert("Could not update item status.");
+          return;
+        }
+
+        const payload = await response.json();
+        const row = this.closest("tr");
+        const finishedAt = row ? row.querySelector(".finished-at") : null;
+        if (finishedAt) {
+          finishedAt.textContent = payload.finished_display
+            ? `Finished: ${payload.finished_display}`
+            : "";
         }
       } catch (error) {
         this.checked = previousChecked;

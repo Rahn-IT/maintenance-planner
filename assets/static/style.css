@@ -261,6 +261,15 @@ input[type="submit"].btn-primary:hover {
     color: var(--muted);
 }
 
+.finished-at {
+    display: block;
+    height: 1.35rem;
+    line-height: 1.35rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 .template {
     display: none;
 }
