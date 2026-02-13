@@ -4,6 +4,11 @@
     <form method="post" action="/action_plan/{{id}}/execute">
         <button class="btn btn-primary" type="submit">Create Todo List</button>
     </form>
+    {% if active_execution_link %}
+    <a class="btn btn-primary" href="/executions/{{ active_execution_link }}">Continue Active Execution</a>
+    {% elif last_finished_display %}
+    <span class="muted">Last finished: {{ last_finished_display }}</span>
+    {% endif %}
 </div>
 <div class="details-card">
     <div class="plan-name">{{ name }}</div>

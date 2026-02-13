@@ -254,7 +254,7 @@ pub async fn show_action_plan(
     .fetch_all(&state.db)
     .await?;
 
-    let active_executions = active_execution_rows
+    let active_executions: Vec<PlanExecutionActive> = active_execution_rows
         .into_iter()
         .map(|row| PlanExecutionActive {
             id: row.id,
@@ -262,7 +262,7 @@ pub async fn show_action_plan(
         })
         .collect();
 
-    let finished_executions = finished_execution_rows
+    let finished_executions: Vec<PlanExecutionFinished> = finished_execution_rows
         .into_iter()
         .map(|row| PlanExecutionFinished {
             id: row.id,
@@ -271,12 +271,23 @@ pub async fn show_action_plan(
         })
         .collect();
 
+    let active_execution_link = active_executions.first().map(|execution| execution.id);
+    let last_finished_display = if active_execution_link.is_none() {
+        finished_executions
+            .first()
+            .map(|execution| execution.finished_display.clone())
+    } else {
+        None
+    };
+
     let plan = ActionPlanShow {
         id: plan.id,
         name: plan.name,
         items,
         active_executions,
         finished_executions,
+        active_execution_link,
+        last_finished_display,
     };
 
     let template = state
@@ -303,6 +314,8 @@ pub struct ActionPlanShow {
     items: Vec<ActionPlanItem>,
     active_executions: Vec<PlanExecutionActive>,
     finished_executions: Vec<PlanExecutionFinished>,
+    active_execution_link: Option<Uuid>,
+    last_finished_display: Option<String>,
 }
 
 #[derive(Serialize)]
