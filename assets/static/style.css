@@ -101,12 +101,16 @@ a:hover {
     flex-wrap: wrap;
 }
 
+.toolbar:empty {
+    display: none;
+}
+
 .toolbar form {
     margin: 0;
 }
 
-.execution-actions {
-    margin-top: 1.5rem;
+.bottom-toolbar {
+    margin: 1.5rem 0 0;
 }
 
 .details-card {

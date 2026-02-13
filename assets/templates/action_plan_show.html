@@ -1,14 +1,15 @@
-{% extends 'layout.html' %} {% block title %} Action Plan {% endblock %} {% block content %}
-<div class="toolbar">
-    <a class="btn" href="/action_plan/{{id}}/edit">Edit</a>
-    {% if active_execution_link %}
-    <a class="btn btn-primary" href="/executions/{{ active_execution_link }}">Continue Active Execution</a>
-    {% else %}
-    <form method="post" action="/action_plan/{{id}}/execute">
-        <button class="btn btn-primary" type="submit">Start Execution</button>
-    </form>
-    {% endif %}
-</div>
+{% extends 'layout.html' %} {% block title %} Action Plan {% endblock %}
+{% block top_actions %}
+<a class="btn" href="/action_plan/{{id}}/edit">Edit</a>
+{% if active_execution_link %}
+<a class="btn btn-primary" href="/executions/{{ active_execution_link }}">Continue Active Execution</a>
+{% else %}
+<form method="post" action="/action_plan/{{id}}/execute">
+    <button class="btn btn-primary" type="submit">Start Execution</button>
+</form>
+{% endif %}
+{% endblock %}
+{% block content %}
 <div class="details-card">
     <div class="plan-name">{{ name }}</div>
     <table class="items-table">
