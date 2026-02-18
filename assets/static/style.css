@@ -153,8 +153,21 @@ a:hover {
     transition: transform 0.12s ease, box-shadow 0.12s ease;
 }
 
-.plan-card-clickable {
+.plan-card-link-wrapper {
+    position: relative;
     cursor: pointer;
+}
+
+.plan-card-stretched-link {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    border-radius: 12px;
+}
+
+.plan-card-inner-link {
+    position: relative;
+    z-index: 3;
 }
 
 .plan-card h2 {

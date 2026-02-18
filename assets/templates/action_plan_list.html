@@ -11,17 +11,19 @@
 {% block content %}
 <div class="plan-list">
     {% for action_plan in action_plans %}
-    <div
-        class="plan-card plan-card-clickable"
-        data-href="/action_plan/{{ action_plan.id }}"
-        role="link"
-        tabindex="0"
-    >
+    <div class="plan-card plan-card-link-wrapper">
+        <a
+            class="plan-card-stretched-link"
+            href="/action_plan/{{ action_plan.id }}"
+            aria-label="Open action plan {{ action_plan.name }}"
+        ></a>
         <h2>{{ action_plan.name }}</h2>
         {% if show_deleted %}
         <p class="muted">This action plan is deleted.</p>
         {% elif action_plan.active_execution_id %}
-        <p><a href="/executions/{{ action_plan.active_execution_id }}">Continue active execution</a></p>
+        <p>
+            <a class="plan-card-inner-link" href="/executions/{{ action_plan.active_execution_id }}">Continue active execution</a>
+        </p>
         {% elif action_plan.last_finished_display %}
         <p class="muted">Last finished: {{ action_plan.last_finished_display }}</p>
         {% else %}

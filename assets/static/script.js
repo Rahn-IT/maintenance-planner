@@ -119,34 +119,7 @@ window.onload = function () {
     updateCompleteExecutionLinkState();
   };
 
-  const initializeClickableCards = () => {
-    document.querySelectorAll(".plan-card-clickable").forEach((card) => {
-      const navigate = () => {
-        const href = card.getAttribute("data-href");
-        if (href) {
-          window.location.href = href;
-        }
-      };
-
-      card.addEventListener("click", function (event) {
-        if (event.target.closest("a, button, input, form, label, textarea, select")) {
-          return;
-        }
-        navigate();
-      });
-
-      card.addEventListener("keydown", function (event) {
-        if (event.key !== "Enter" && event.key !== " ") {
-          return;
-        }
-        event.preventDefault();
-        navigate();
-      });
-    });
-  };
-
   initializeDynamicRows();
   initializeExecutionItemToggles();
   initializeCompletionLink();
-  initializeClickableCards();
 };
