@@ -11,7 +11,7 @@ use axum_extra::extract::{
     cookie::{Cookie, CookieJar, SameSite},
 };
 use serde::{Deserialize, Serialize};
-use sqlx::{FromRow, SqlitePool};
+use sqlx::SqlitePool;
 use uuid::Uuid;
 
 use crate::{AppError, AppState, CurrentUser};
@@ -19,7 +19,7 @@ use crate::{AppError, AppState, CurrentUser};
 pub const SESSION_COOKIE_NAME: &str = "maintenance_planner_session_id";
 const SESSION_DURATION_SECONDS: i64 = 60 * 60 * 24 * 30;
 
-#[derive(Debug, Clone, FromRow)]
+#[derive(Debug, Clone)]
 pub struct User {
     pub id: Uuid,
     pub name: String,
@@ -92,7 +92,7 @@ pub struct CreateUserForm {
 }
 
 pub async fn has_users(db: &SqlitePool) -> Result<bool, AppError> {
-    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users")
+    let count = sqlx::query_scalar!("SELECT COUNT(*) as \"count!: i64\" FROM users")
         .fetch_one(db)
         .await?;
     Ok(count > 0)
@@ -103,18 +103,23 @@ pub async fn resolve_current_user_from_session(
     session_id: Uuid,
 ) -> Result<Option<CurrentUser>, AppError> {
     let valid_since = unix_now().saturating_sub(SESSION_DURATION_SECONDS);
-    let user = sqlx::query_as::<_, User>(
+    let user = sqlx::query_as!(
+        User,
         r#"
-        SELECT users.id, users.name, users.is_admin, users.password_hash
+        SELECT
+            users.id as "id: uuid::Uuid",
+            users.name,
+            users.is_admin,
+            users.password_hash
         FROM user_sessions
         INNER JOIN users ON users.id = user_sessions.user_id
         WHERE user_sessions.id = $1
             AND user_sessions.created_at > $2
         LIMIT 1
         "#,
+        session_id,
+        valid_since
     )
-    .bind(session_id)
-    .bind(valid_since)
     .fetch_optional(db)
     .await?;
 
@@ -123,10 +128,12 @@ pub async fn resolve_current_user_from_session(
 
 pub async fn cleanup_expired_sessions(db: &SqlitePool) -> Result<u64, AppError> {
     let valid_since = unix_now().saturating_sub(SESSION_DURATION_SECONDS);
-    let result = sqlx::query("DELETE FROM user_sessions WHERE created_at <= $1")
-        .bind(valid_since)
-        .execute(db)
-        .await?;
+    let result = sqlx::query!(
+        "DELETE FROM user_sessions WHERE created_at <= $1",
+        valid_since
+    )
+    .execute(db)
+    .await?;
     Ok(result.rows_affected())
 }
 
@@ -161,10 +168,21 @@ pub async fn login_post(
         return Ok(Redirect::to("/setup").into_response());
     }
 
-    let user = sqlx::query_as::<_, User>(
-        "SELECT id, name, is_admin, password_hash FROM users WHERE LOWER(name) = LOWER($1) LIMIT 1",
+    let login_name = form.name.trim().to_string();
+    let user = sqlx::query_as!(
+        User,
+        r#"
+        SELECT
+            id as "id: uuid::Uuid",
+            name,
+            is_admin,
+            password_hash
+        FROM users
+        WHERE LOWER(name) = LOWER($1)
+        LIMIT 1
+        "#,
+        login_name
     )
-    .bind(form.name.trim())
     .fetch_optional(&state.db)
     .await?;
 
@@ -178,12 +196,14 @@ pub async fn login_post(
 
     let session_id = Uuid::new_v4();
     let now = unix_now();
-    sqlx::query("INSERT INTO user_sessions (id, user_id, created_at) VALUES ($1, $2, $3)")
-        .bind(session_id)
-        .bind(user.id)
-        .bind(now)
-        .execute(&state.db)
-        .await?;
+    sqlx::query!(
+        "INSERT INTO user_sessions (id, user_id, created_at) VALUES ($1, $2, $3)",
+        session_id,
+        user.id,
+        now
+    )
+    .execute(&state.db)
+    .await?;
 
     let cookie = Cookie::build((SESSION_COOKIE_NAME, session_id.to_string()))
         .path("/")
@@ -220,14 +240,17 @@ pub async fn setup_post(
         return render_setup(&state, Some("Passwords do not match."));
     }
 
-    sqlx::query(
+    let setup_user_id = Uuid::new_v4();
+    let setup_created_at = unix_now();
+    let setup_password_hash = hash_password(&form.password)?;
+    sqlx::query!(
         "INSERT INTO users (id, name, is_admin, created_at, password_hash) VALUES ($1, $2, $3, $4, $5)",
+        setup_user_id,
+        name,
+        1_i64,
+        setup_created_at,
+        setup_password_hash
     )
-    .bind(Uuid::new_v4())
-    .bind(name)
-    .bind(1_i64)
-    .bind(unix_now())
-    .bind(hash_password(&form.password)?)
     .execute(&state.db)
     .await?;
 
@@ -239,8 +262,7 @@ pub async fn logout_post(
     jar: CookieJar,
 ) -> Result<(CookieJar, Redirect), AppError> {
     if let Some(session_id) = read_session_cookie(&jar) {
-        let _ = sqlx::query("DELETE FROM user_sessions WHERE id = $1")
-            .bind(session_id)
+        let _ = sqlx::query!("DELETE FROM user_sessions WHERE id = $1", session_id)
             .execute(&state.db)
             .await;
     }
@@ -256,8 +278,17 @@ pub async fn index(
 ) -> Result<Html<String>, AppError> {
     require_admin(&current_user)?;
 
-    let users = sqlx::query_as::<_, User>(
-        "SELECT id, name, is_admin, password_hash FROM users ORDER BY name ASC",
+    let users = sqlx::query_as!(
+        User,
+        r#"
+        SELECT
+            id as "id: uuid::Uuid",
+            name,
+            is_admin,
+            password_hash
+        FROM users
+        ORDER BY name ASC
+        "#
     )
     .fetch_all(&state.db)
     .await?;
@@ -301,24 +332,37 @@ pub async fn create_post(
         ));
     }
 
-    let exists: Option<Uuid> =
-        sqlx::query_scalar("SELECT id FROM users WHERE LOWER(name) = LOWER($1)")
-            .bind(name)
-            .fetch_optional(&state.db)
-            .await?;
+    let exists = sqlx::query_scalar!(
+        r#"
+        SELECT id as "id: uuid::Uuid"
+        FROM users
+        WHERE LOWER(name) = LOWER($1)
+        "#,
+        name
+    )
+    .fetch_optional(&state.db)
+    .await?;
 
     if exists.is_some() {
         return Err(AppError::conflict("A user with this name already exists."));
     }
 
-    sqlx::query(
+    let created_user_id = Uuid::new_v4();
+    let created_is_admin = if form.is_admin.is_some() {
+        1_i64
+    } else {
+        0_i64
+    };
+    let created_at = unix_now();
+    let created_password_hash = hash_password(&form.password)?;
+    sqlx::query!(
         "INSERT INTO users (id, name, is_admin, created_at, password_hash) VALUES ($1, $2, $3, $4, $5)",
+        created_user_id,
+        name,
+        created_is_admin,
+        created_at,
+        created_password_hash
     )
-    .bind(Uuid::new_v4())
-    .bind(name)
-    .bind(if form.is_admin.is_some() { 1_i64 } else { 0_i64 })
-    .bind(unix_now())
-    .bind(hash_password(&form.password)?)
     .execute(&state.db)
     .await?;
 
@@ -338,10 +382,20 @@ pub async fn delete_post(
         ));
     }
 
-    let target = sqlx::query_as::<_, User>(
-        "SELECT id, name, is_admin, password_hash FROM users WHERE id = $1 LIMIT 1",
+    let target = sqlx::query_as!(
+        User,
+        r#"
+        SELECT
+            id as "id: uuid::Uuid",
+            name,
+            is_admin,
+            password_hash
+        FROM users
+        WHERE id = $1
+        LIMIT 1
+        "#,
+        id
     )
-    .bind(id)
     .fetch_optional(&state.db)
     .await?;
 
@@ -353,9 +407,10 @@ pub async fn delete_post(
     };
 
     if target.is_admin != 0 {
-        let admin_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users WHERE is_admin = 1")
-            .fetch_one(&state.db)
-            .await?;
+        let admin_count =
+            sqlx::query_scalar!("SELECT COUNT(*) as \"count!: i64\" FROM users WHERE is_admin = 1")
+                .fetch_one(&state.db)
+                .await?;
 
         if admin_count <= 1 {
             return Err(AppError::conflict("At least one admin user must remain."));
@@ -363,13 +418,11 @@ pub async fn delete_post(
     }
 
     let mut tx = state.db.begin().await?;
-    sqlx::query("DELETE FROM user_sessions WHERE user_id = $1")
-        .bind(id)
+    sqlx::query!("DELETE FROM user_sessions WHERE user_id = $1", id)
         .execute(&mut *tx)
         .await?;
 
-    sqlx::query("DELETE FROM users WHERE id = $1")
-        .bind(id)
+    sqlx::query!("DELETE FROM users WHERE id = $1", id)
         .execute(&mut *tx)
         .await?;
     tx.commit().await?;
@@ -390,10 +443,20 @@ pub async fn delete_get(
         ));
     }
 
-    let target = sqlx::query_as::<_, User>(
-        "SELECT id, name, is_admin, password_hash FROM users WHERE id = $1 LIMIT 1",
+    let target = sqlx::query_as!(
+        User,
+        r#"
+        SELECT
+            id as "id: uuid::Uuid",
+            name,
+            is_admin,
+            password_hash
+        FROM users
+        WHERE id = $1
+        LIMIT 1
+        "#,
+        id
     )
-    .bind(id)
     .fetch_optional(&state.db)
     .await?;
 
@@ -405,9 +468,10 @@ pub async fn delete_get(
     };
 
     if target.is_admin != 0 {
-        let admin_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users WHERE is_admin = 1")
-            .fetch_one(&state.db)
-            .await?;
+        let admin_count =
+            sqlx::query_scalar!("SELECT COUNT(*) as \"count!: i64\" FROM users WHERE is_admin = 1")
+                .fetch_one(&state.db)
+                .await?;
 
         if admin_count <= 1 {
             return Err(AppError::conflict("At least one admin user must remain."));
