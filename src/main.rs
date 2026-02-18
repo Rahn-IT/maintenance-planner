@@ -2,10 +2,14 @@ use std::{path::Path, sync::Arc};
 
 use axum::{
     Router,
+    extract::{FromRequestParts, Request, State},
+    http::request::Parts,
     http::{HeaderValue, StatusCode, header},
+    middleware::{self, Next},
     response::{IntoResponse, Response},
     routing::{get, post},
 };
+use axum_extra::extract::cookie::CookieJar;
 use chrono::{Local, TimeZone};
 use sqlx::{Sqlite, SqlitePool, migrate::MigrateDatabase};
 use tokio::{signal, time::Duration};
@@ -14,6 +18,7 @@ use uuid::Uuid;
 mod action_plan;
 mod backup;
 mod executions;
+mod users;
 
 const DB_PATH: &str = "./db/db.sqlite";
 
@@ -21,6 +26,13 @@ const DB_PATH: &str = "./db/db.sqlite";
 struct AppState {
     db: SqlitePool,
     jinja: Arc<minijinja::Environment<'static>>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct CurrentUser {
+    pub(crate) id: Uuid,
+    pub(crate) name: String,
+    pub(crate) is_admin: bool,
 }
 
 #[derive(Debug)]
@@ -57,6 +69,22 @@ impl AppError {
             not_found_title: None,
         }
     }
+
+    pub fn forbidden(message: impl Into<String>) -> Self {
+        Self {
+            status: StatusCode::FORBIDDEN,
+            message: message.into(),
+            not_found_title: None,
+        }
+    }
+
+    pub fn unauthorized(message: impl Into<String>) -> Self {
+        Self {
+            status: StatusCode::UNAUTHORIZED,
+            message: message.into(),
+            not_found_title: None,
+        }
+    }
 }
 
 impl<E> From<E> for AppError
@@ -70,21 +98,28 @@ where
 
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
-        if self.status == StatusCode::NOT_FOUND || self.status == StatusCode::CONFLICT {
-            let (title, button_label, button_href): (String, &str, &str) = if self.status
-                == StatusCode::NOT_FOUND
-            {
-                (
-                    format!(
-                        "{} Not Found",
-                        self.not_found_title.as_deref().unwrap_or("Site")
-                    ),
-                    "Back Home",
-                    "/",
-                )
-            } else {
-                ("Cannot Save Changes".to_string(), "Back Home", "/")
-            };
+        if self.status == StatusCode::NOT_FOUND
+            || self.status == StatusCode::CONFLICT
+            || self.status == StatusCode::FORBIDDEN
+            || self.status == StatusCode::UNAUTHORIZED
+        {
+            let (title, button_label, button_href): (String, &str, &str) =
+                if self.status == StatusCode::NOT_FOUND {
+                    (
+                        format!(
+                            "{} Not Found",
+                            self.not_found_title.as_deref().unwrap_or("Site")
+                        ),
+                        "Back Home",
+                        "/",
+                    )
+                } else if self.status == StatusCode::FORBIDDEN {
+                    ("Forbidden".to_string(), "Back Home", "/")
+                } else if self.status == StatusCode::UNAUTHORIZED {
+                    ("Unauthorized".to_string(), "Login", "/login")
+                } else {
+                    ("Cannot Save Changes".to_string(), "Back Home", "/")
+                };
 
             let html = format!(
                 r#"<!doctype html>
@@ -152,7 +187,9 @@ async fn main() {
     let db = SqlitePool::connect(DB_PATH).await.unwrap();
     sqlx::migrate!("./migrations").run(&db).await.unwrap();
     run_action_gc(&db).await;
+    run_session_gc(&db).await;
     tokio::spawn(run_action_gc_scheduler(db.clone()));
+    tokio::spawn(run_session_gc_scheduler(db.clone()));
 
     let mut jinja = minijinja::Environment::new();
     minijinja_embed::load_templates!(&mut jinja);
@@ -163,7 +200,12 @@ async fn main() {
     };
 
     // build our application with a route
-    let app = router().with_state(state);
+    let app = router()
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            auth_middleware,
+        ))
+        .with_state(state);
 
     // run our app with hyper, listening globally on port 3000
     let addr = "0.0.0.0:4040";
@@ -180,6 +222,14 @@ async fn main() {
 }
 
 fn router() -> Router<AppState> {
+    let admin_routes = Router::new()
+        .route("/backup", get(backup::index))
+        .route("/backup/export.json", get(backup::export_json))
+        .route("/backup/import", post(backup::import_json))
+        .route("/users", get(users::index).post(users::create_post))
+        .route("/users/{id}/delete", post(users::delete_post))
+        .route_layer(middleware::from_extractor::<RequireAdmin>());
+
     Router::new()
         // `GET /` goes to `root`
         .route("/", get(action_plan::index))
@@ -199,15 +249,19 @@ fn router() -> Router<AppState> {
         .route("/action_plan/{id}", get(action_plan::show_action_plan))
         .route("/action_plan/{id}/execute", post(executions::create_post))
         .route("/action_plan/{id}/delete", post(action_plan::delete_post))
-        .route("/action_plan/{id}/undelete", post(action_plan::undelete_post))
+        .route(
+            "/action_plan/{id}/undelete",
+            post(action_plan::undelete_post),
+        )
         .route("/action_plan/new", get(action_plan::new_get))
         .route("/action_plan/new", post(action_plan::new_post))
         .route("/action_plan/{id}/edit", get(action_plan::edit_get))
         .route("/action_plan/{id}/edit", post(action_plan::edit_post))
         .route("/actions/search", get(action_plan::search_actions))
-        .route("/backup", get(backup::index))
-        .route("/backup/export.json", get(backup::export_json))
-        .route("/backup/import", post(backup::import_json))
+        .route("/setup", get(users::setup_get).post(users::setup_post))
+        .route("/login", get(users::login_get).post(users::login_post))
+        .route("/logout", post(users::logout_post))
+        .merge(admin_routes)
         .route(
             "/static/style.css",
             get((
@@ -240,6 +294,95 @@ fn router() -> Router<AppState> {
         )
 }
 
+struct RequireAdmin;
+
+impl<S> FromRequestParts<S> for RequireAdmin
+where
+    S: Send + Sync,
+{
+    type Rejection = AppError;
+
+    async fn from_request_parts(
+        parts: &mut Parts,
+        _state: &S,
+    ) -> Result<Self, Self::Rejection> {
+        let current_user = parts
+            .extensions
+            .get::<CurrentUser>()
+            .cloned()
+            .ok_or_else(|| AppError::unauthorized("Authentication required."))?;
+
+        if current_user.is_admin {
+            Ok(Self)
+        } else {
+            Err(AppError::forbidden(
+                "Only admin users can access this endpoint.",
+            ))
+        }
+    }
+}
+
+impl FromRequestParts<AppState> for CurrentUser {
+    type Rejection = AppError;
+
+    async fn from_request_parts(
+        parts: &mut Parts,
+        _state: &AppState,
+    ) -> Result<Self, Self::Rejection> {
+        parts
+            .extensions
+            .get::<CurrentUser>()
+            .cloned()
+            .ok_or_else(|| AppError::unauthorized("Authentication required."))
+    }
+}
+
+async fn auth_middleware(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    mut request: Request,
+    next: Next,
+) -> Response {
+    let path = request.uri().path().to_string();
+    if path.starts_with("/static/") {
+        return next.run(request).await;
+    }
+
+    let has_users = match users::has_users(&state.db).await {
+        Ok(value) => value,
+        Err(err) => return err.into_response(),
+    };
+
+    if !has_users {
+        if path == "/setup" {
+            return next.run(request).await;
+        }
+        return axum::response::Redirect::to("/setup").into_response();
+    }
+
+    if path == "/setup" {
+        return axum::response::Redirect::to("/login").into_response();
+    }
+
+    if path == "/login" {
+        return next.run(request).await;
+    }
+
+    let session_id = match users::read_session_cookie(&jar) {
+        Some(id) => id,
+        None => return axum::response::Redirect::to("/login").into_response(),
+    };
+
+    let current_user = match users::resolve_current_user_from_session(&state.db, session_id).await {
+        Ok(Some(user)) => user,
+        Ok(None) => return axum::response::Redirect::to("/login").into_response(),
+        Err(err) => return err.into_response(),
+    };
+
+    request.extensions_mut().insert(current_user);
+    next.run(request).await
+}
+
 pub fn format_unix_timestamp(timestamp: i64) -> String {
     if timestamp <= 0 {
         return "Unknown".to_string();
@@ -267,6 +410,16 @@ async fn run_action_gc_scheduler(db: SqlitePool) {
     }
 }
 
+async fn run_session_gc_scheduler(db: SqlitePool) {
+    let mut interval = tokio::time::interval(Duration::from_secs(60 * 60));
+    interval.tick().await;
+
+    loop {
+        interval.tick().await;
+        run_session_gc(&db).await;
+    }
+}
+
 async fn run_action_gc(db: &SqlitePool) {
     match collect_and_delete_unused_actions(db).await {
         Ok(unused_actions) if unused_actions.is_empty() => {
@@ -286,6 +439,20 @@ async fn run_action_gc(db: &SqlitePool) {
         }
         Err(err) => {
             eprintln!("Action GC failed: {}", err);
+        }
+    }
+}
+
+async fn run_session_gc(db: &SqlitePool) {
+    match users::cleanup_expired_sessions(db).await {
+        Ok(0) => {
+            println!("Session GC: no expired sessions found.");
+        }
+        Ok(count) => {
+            println!("Session GC: deleted {} expired session(s).", count);
+        }
+        Err(err) => {
+            eprintln!("Session GC failed: {}", err.message);
         }
     }
 }

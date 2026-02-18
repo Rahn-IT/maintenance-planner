@@ -48,6 +48,11 @@ a:hover {
     z-index: 10;
 }
 
+.nav-spacer {
+    visibility: hidden;
+    pointer-events: none;
+}
+
 .top-nav-inner {
     max-width: 960px;
     margin: 0 auto;
@@ -64,6 +69,16 @@ a:hover {
     gap: 0.85rem;
 }
 
+.nav-right {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+}
+
+.nav-right form {
+    margin: 0;
+}
+
 .brand {
     font-weight: 700;
     font-size: 1.05rem;
@@ -73,6 +88,10 @@ a:hover {
 
 .nav-link {
     font-weight: 600;
+}
+
+.is-hidden {
+    display: none !important;
 }
 
 .page {
@@ -207,10 +226,30 @@ input[type="text"] {
     background: #fff;
 }
 
-input[type="text"]:focus {
+input[type="password"] {
+    width: 100%;
+    border: 1px solid #c7d3e4;
+    border-radius: 10px;
+    padding: 0.55rem 0.65rem;
+    font: inherit;
+    color: var(--text);
+    background: #fff;
+}
+
+input[type="text"]:focus,
+input[type="password"]:focus {
     outline: none;
     border-color: var(--brand);
     box-shadow: 0 0 0 3px rgba(31, 111, 235, 0.15);
+}
+
+.page.auth-page {
+    margin-top: 3rem;
+}
+
+.auth-card {
+    max-width: 420px;
+    margin: 0 auto;
 }
 
 .form-table {
@@ -347,6 +386,10 @@ input[type="submit"].btn-primary:hover {
 @media (max-width: 700px) {
     .page {
         margin: 1.2rem auto;
+    }
+
+    .page.auth-page {
+        margin-top: 2.2rem;
     }
 
     .content-card {

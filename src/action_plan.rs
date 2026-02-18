@@ -1,6 +1,6 @@
 use axum::{
-    extract::{Path, Query, State},
     Json,
+    extract::{Path, Query, State},
     response::{Html, Redirect},
 };
 use axum_extra::extract::Form;
@@ -10,7 +10,7 @@ use sqlx::{Sqlite, Transaction};
 use std::collections::HashMap;
 use uuid::Uuid;
 
-use crate::{AppError, AppState, format_unix_timestamp};
+use crate::{AppError, AppState, CurrentUser, format_unix_timestamp};
 
 #[derive(FromRow, Debug, Serialize)]
 pub struct ActionPlan {
@@ -24,6 +24,7 @@ pub struct ActionPlanList {
     action_plans: Vec<ActionPlanListItem>,
     current_sort: String,
     show_deleted: bool,
+    is_admin: bool,
 }
 
 #[derive(Serialize)]
@@ -36,6 +37,7 @@ pub struct ActionPlanListItem {
 
 pub async fn index(
     State(state): State<AppState>,
+    current_user: CurrentUser,
     Query(query): Query<ActionPlanListQuery>,
 ) -> Result<Html<String>, AppError> {
     let sort = query.sort.unwrap_or_else(|| "name".to_string());
@@ -153,18 +155,23 @@ pub async fn index(
         action_plans,
         current_sort: sort,
         show_deleted,
+        is_admin: current_user.is_admin,
     })?;
 
     Ok(Html(rendered))
 }
 
-pub async fn new_get(State(state): State<AppState>) -> Result<Html<String>, AppError> {
+pub async fn new_get(
+    State(state): State<AppState>,
+    current_user: CurrentUser,
+) -> Result<Html<String>, AppError> {
     let plan = ActionPlanEdit {
         id: None,
         form_action: "/action_plan/new".to_string(),
         cancel_url: "/".to_string(),
         name: String::new(),
         items: Vec::new(),
+        is_admin: current_user.is_admin,
     };
 
     edit_action_plan(&state, &plan)
@@ -197,6 +204,7 @@ pub async fn new_post(
 
 pub async fn edit_get(
     State(state): State<AppState>,
+    current_user: CurrentUser,
     Path(id): Path<Uuid>,
     Query(query): Query<EditContext>,
 ) -> Result<Html<String>, AppError> {
@@ -218,10 +226,10 @@ pub async fn edit_get(
     .fetch_optional(&state.db)
     .await?;
     let Some(plan) = plan else {
-        return Err(AppError::not_found_for("Action Plan", format!(
-            "No action plan exists for id: {}",
-            id
-        )));
+        return Err(AppError::not_found_for(
+            "Action Plan",
+            format!("No action plan exists for id: {}", id),
+        ));
     };
 
     let items = sqlx::query_as!(
@@ -241,7 +249,10 @@ pub async fn edit_get(
     let plan = ActionPlanEdit {
         id: Some(plan.id),
         form_action: if let Some(execution_id) = execution_id {
-            format!("/action_plan/{}/edit?execution_id={}", plan.id, execution_id)
+            format!(
+                "/action_plan/{}/edit?execution_id={}",
+                plan.id, execution_id
+            )
         } else {
             format!("/action_plan/{}/edit", plan.id)
         },
@@ -252,6 +263,7 @@ pub async fn edit_get(
         },
         name: plan.name,
         items,
+        is_admin: current_user.is_admin,
     };
 
     edit_action_plan(&state, &plan)
@@ -274,10 +286,10 @@ pub async fn edit_post(
     .execute(&mut *tx)
     .await?;
     if update_result.rows_affected() == 0 {
-        return Err(AppError::not_found_for("Action Plan", format!(
-            "No action plan exists for id: {}",
-            id
-        )));
+        return Err(AppError::not_found_for(
+            "Action Plan",
+            format!("No action plan exists for id: {}", id),
+        ));
     }
 
     update_plan_items(tx, id, form, execution_id).await
@@ -407,6 +419,7 @@ async fn update_plan_items<'c>(
 
 pub async fn show_action_plan(
     State(state): State<AppState>,
+    current_user: CurrentUser,
     Path(id): Path<Uuid>,
 ) -> Result<Html<String>, AppError> {
     let plan = sqlx::query_as!(
@@ -424,10 +437,10 @@ pub async fn show_action_plan(
     .fetch_optional(&state.db)
     .await?;
     let Some(plan) = plan else {
-        return Err(AppError::not_found_for("Action Plan", format!(
-            "No action plan exists for id: {}",
-            id
-        )));
+        return Err(AppError::not_found_for(
+            "Action Plan",
+            format!("No action plan exists for id: {}", id),
+        ));
     };
 
     let items = sqlx::query_as!(
@@ -508,6 +521,7 @@ pub async fn show_action_plan(
         active_executions,
         finished_executions,
         active_execution_link,
+        is_admin: current_user.is_admin,
     };
 
     let template = state
@@ -538,10 +552,10 @@ pub async fn delete_post(
     .await?;
 
     if result.rows_affected() == 0 {
-        return Err(AppError::not_found_for("Action Plan", format!(
-            "No active action plan exists for id: {}",
-            id
-        )));
+        return Err(AppError::not_found_for(
+            "Action Plan",
+            format!("No active action plan exists for id: {}", id),
+        ));
     }
 
     Ok(Redirect::to("/"))
@@ -564,10 +578,10 @@ pub async fn undelete_post(
     .await?;
 
     if result.rows_affected() == 0 {
-        return Err(AppError::not_found_for("Action Plan", format!(
-            "No deleted action plan exists for id: {}",
-            id
-        )));
+        return Err(AppError::not_found_for(
+            "Action Plan",
+            format!("No deleted action plan exists for id: {}", id),
+        ));
     }
 
     Ok(Redirect::to(&format!("/action_plan/{}", id)))
@@ -580,6 +594,7 @@ pub struct ActionPlanEdit {
     cancel_url: String,
     name: String,
     items: Vec<ActionPlanItem>,
+    is_admin: bool,
 }
 
 #[derive(Serialize)]
@@ -592,6 +607,7 @@ pub struct ActionPlanShow {
     active_executions: Vec<PlanExecutionActive>,
     finished_executions: Vec<PlanExecutionFinished>,
     active_execution_link: Option<Uuid>,
+    is_admin: bool,
 }
 
 #[derive(Serialize)]

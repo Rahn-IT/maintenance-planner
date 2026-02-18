@@ -4,8 +4,14 @@
             <a class="brand" href="/">Maintenance Planner</a>
             <a class="nav-link" href="/">Home</a>
             <a class="nav-link" href="/executions">Executions</a>
-            <a class="nav-link" href="/backup">Backup</a>
+            {% if is_admin %}<a class="nav-link" href="/backup">Backup</a>{%
+            endif %} {% if is_admin %}<a class="nav-link" href="/users">Users</a
+            >{% endif %}
         </div>
-        <a class="nav-link" href="/action_plan/new">New Plan</a>
+        <div class="nav-right">
+            <form method="post" action="/logout">
+                <input class="btn" type="submit" value="Logout" />
+            </form>
+        </div>
     </div>
 </nav>

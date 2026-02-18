@@ -7,9 +7,12 @@ use serde::{Deserialize, Serialize};
 use sqlx::prelude::FromRow;
 use uuid::Uuid;
 
-use crate::{AppError, AppState, format_unix_timestamp};
+use crate::{AppError, AppState, CurrentUser, format_unix_timestamp};
 
-pub async fn index(State(state): State<AppState>) -> Result<Html<String>, AppError> {
+pub async fn index(
+    State(state): State<AppState>,
+    current_user: CurrentUser,
+) -> Result<Html<String>, AppError> {
     let unfinished_execution_rows = sqlx::query_as!(
         UnfinishedExecutionListItemRow,
         r#"
@@ -69,6 +72,7 @@ pub async fn index(State(state): State<AppState>) -> Result<Html<String>, AppErr
     let rendered = template.render(&ActionPlanExecutionList {
         unfinished_executions,
         finished_executions,
+        is_admin: current_user.is_admin,
     })?;
 
     Ok(Html(rendered))
@@ -92,10 +96,10 @@ pub async fn create_post(
     .fetch_optional(&mut *tx)
     .await?;
     if plan_exists.is_none() {
-        return Err(AppError::not_found_for("Action Plan", format!(
-            "No action plan exists for id: {}",
-            id
-        )));
+        return Err(AppError::not_found_for(
+            "Action Plan",
+            format!("No action plan exists for id: {}", id),
+        ));
     }
 
     let execution_id = Uuid::new_v4();
@@ -140,14 +144,12 @@ pub async fn create_post(
 
     tx.commit().await?;
 
-    Ok(Redirect::to(&format!(
-        "/executions/{}",
-        execution_id
-    )))
+    Ok(Redirect::to(&format!("/executions/{}", execution_id)))
 }
 
 pub async fn show(
     State(state): State<AppState>,
+    current_user: CurrentUser,
     Path(id): Path<Uuid>,
 ) -> Result<Html<String>, AppError> {
     let execution = sqlx::query_as!(
@@ -169,10 +171,10 @@ pub async fn show(
     .fetch_optional(&state.db)
     .await?;
     let Some(execution) = execution else {
-        return Err(AppError::not_found_for("Execution", format!(
-            "No todo list exists for execution id: {}",
-            id
-        )));
+        return Err(AppError::not_found_for(
+            "Execution",
+            format!("No todo list exists for execution id: {}", id),
+        ));
     };
 
     let item_rows = sqlx::query_as!(
@@ -228,6 +230,7 @@ pub async fn show(
             .unwrap_or(false),
         can_complete: !items.is_empty() && items.iter().all(|item| item.is_finished),
         items,
+        is_admin: current_user.is_admin,
     };
 
     let template = state
@@ -250,10 +253,10 @@ pub async fn complete_get(
     .fetch_optional(&state.db)
     .await?;
     if execution_exists.is_none() {
-        return Err(AppError::not_found_for("Execution", format!(
-            "No todo list exists for execution id: {}",
-            id
-        )));
+        return Err(AppError::not_found_for(
+            "Execution",
+            format!("No todo list exists for execution id: {}", id),
+        ));
     }
 
     let incomplete_count = sqlx::query_scalar!(
@@ -307,10 +310,10 @@ pub async fn reopen_get(
     .await?;
 
     let Some(execution) = execution else {
-        return Err(AppError::not_found_for("Execution", format!(
-            "No todo list exists for execution id: {}",
-            id
-        )));
+        return Err(AppError::not_found_for(
+            "Execution",
+            format!("No todo list exists for execution id: {}", id),
+        ));
     };
 
     let Some(finished_at) = execution.finished else {
@@ -355,16 +358,14 @@ pub async fn delete_post(
     .await?;
 
     let Some(execution) = execution else {
-        return Err(AppError::not_found_for("Execution", format!(
-            "No todo list exists for execution id: {}",
-            id
-        )));
+        return Err(AppError::not_found_for(
+            "Execution",
+            format!("No todo list exists for execution id: {}", id),
+        ));
     };
 
     if execution.finished.map(|value| value > 0).unwrap_or(false) {
-        return Err(AppError::conflict(
-            "Only open executions can be deleted.",
-        ));
+        return Err(AppError::conflict("Only open executions can be deleted."));
     }
 
     sqlx::query!(
@@ -395,6 +396,7 @@ pub async fn delete_post(
 
 pub async fn delete_get(
     State(state): State<AppState>,
+    current_user: CurrentUser,
     Path(id): Path<Uuid>,
 ) -> Result<Html<String>, AppError> {
     let execution = sqlx::query!(
@@ -414,22 +416,21 @@ pub async fn delete_get(
     .await?;
 
     let Some(execution) = execution else {
-        return Err(AppError::not_found_for("Execution", format!(
-            "No todo list exists for execution id: {}",
-            id
-        )));
+        return Err(AppError::not_found_for(
+            "Execution",
+            format!("No todo list exists for execution id: {}", id),
+        ));
     };
 
     if execution.finished.map(|value| value > 0).unwrap_or(false) {
-        return Err(AppError::conflict(
-            "Only open executions can be deleted.",
-        ));
+        return Err(AppError::conflict("Only open executions can be deleted."));
     }
 
     let view = DeleteExecutionConfirm {
         id: execution.id,
         action_plan_name: execution.action_plan_name,
         started_display: format_unix_timestamp(execution.started),
+        is_admin: current_user.is_admin,
     };
 
     let template = state
@@ -446,7 +447,11 @@ pub async fn set_item_finished_post(
     Path(id): Path<Uuid>,
     Json(body): Json<SetItemFinishedRequest>,
 ) -> Result<Json<SetItemFinishedResponse>, AppError> {
-    let finished = if body.finished { Some(unix_now()) } else { None };
+    let finished = if body.finished {
+        Some(unix_now())
+    } else {
+        None
+    };
     let result = sqlx::query!(
         "UPDATE action_item_executions SET finished = $1 WHERE id = $2",
         finished,
@@ -456,10 +461,10 @@ pub async fn set_item_finished_post(
     .await?;
 
     if result.rows_affected() == 0 {
-        return Err(AppError::not_found_for("Execution", format!(
-            "No execution item exists for id: {}",
-            id
-        )));
+        return Err(AppError::not_found_for(
+            "Execution",
+            format!("No execution item exists for id: {}", id),
+        ));
     }
 
     let finished_display = finished.map(format_unix_timestamp);
@@ -479,6 +484,7 @@ struct ActionPlanExecutionShow {
     is_action_plan_deleted: bool,
     can_complete: bool,
     items: Vec<ExecutionItem>,
+    is_admin: bool,
 }
 
 #[derive(Serialize)]
@@ -521,6 +527,7 @@ struct ActionPlanExecutionShowRow {
 struct ActionPlanExecutionList {
     unfinished_executions: Vec<UnfinishedExecutionListItem>,
     finished_executions: Vec<FinishedExecutionListItem>,
+    is_admin: bool,
 }
 
 #[derive(FromRow, Serialize)]
@@ -558,6 +565,7 @@ struct DeleteExecutionConfirm {
     id: Uuid,
     action_plan_name: String,
     started_display: String,
+    is_admin: bool,
 }
 
 fn unix_now() -> i64 {

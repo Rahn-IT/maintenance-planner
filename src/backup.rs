@@ -9,22 +9,35 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{AppError, AppState};
+use crate::{AppError, AppState, CurrentUser};
 
-pub async fn index(State(state): State<AppState>) -> Result<Html<String>, AppError> {
-    render_backup_page(&state, None)
+pub async fn index(
+    State(state): State<AppState>,
+    current_user: CurrentUser,
+) -> Result<Html<String>, AppError> {
+    require_admin(&current_user)?;
+    render_backup_page(&state, None, current_user.is_admin)
 }
 
-fn render_backup_page(state: &AppState, notice: Option<BackupNotice>) -> Result<Html<String>, AppError> {
+fn render_backup_page(
+    state: &AppState,
+    notice: Option<BackupNotice>,
+    is_admin: bool,
+) -> Result<Html<String>, AppError> {
     let template = state
         .jinja
         .get_template("backup.html")
         .expect("template is loaded");
-    let rendered = template.render(BackupPageView { notice })?;
+    let rendered = template.render(BackupPageView { notice, is_admin })?;
     Ok(Html(rendered))
 }
 
-pub async fn export_json(State(state): State<AppState>) -> Result<impl IntoResponse, AppError> {
+pub async fn export_json(
+    State(state): State<AppState>,
+    current_user: CurrentUser,
+) -> Result<impl IntoResponse, AppError> {
+    require_admin(&current_user)?;
+
     let plans = sqlx::query!(
         r#"
         SELECT
@@ -135,8 +148,11 @@ pub async fn export_json(State(state): State<AppState>) -> Result<impl IntoRespo
 
 pub async fn import_json(
     State(state): State<AppState>,
+    current_user: CurrentUser,
     mut multipart: Multipart,
 ) -> Result<Html<String>, AppError> {
+    require_admin(&current_user)?;
+
     let mut backup_bytes = None;
 
     while let Some(field) = multipart.next_field().await? {
@@ -150,6 +166,7 @@ pub async fn import_json(
         return render_backup_page(
             &state,
             Some(BackupNotice::error("No backup file selected.")),
+            current_user.is_admin,
         );
     };
 
@@ -161,6 +178,7 @@ pub async fn import_json(
                 Some(BackupNotice::error(
                     "The uploaded file is not valid backup JSON.",
                 )),
+                current_user.is_admin,
             );
         }
     };
@@ -172,6 +190,7 @@ pub async fn import_json(
                 "Unsupported backup version: {}",
                 backup.version
             ))),
+            current_user.is_admin,
         );
     }
 
@@ -184,6 +203,7 @@ pub async fn import_json(
                     "Duplicate action plan id in backup: {}",
                     plan.id
                 ))),
+                current_user.is_admin,
             );
         }
     }
@@ -196,6 +216,7 @@ pub async fn import_json(
                     "Execution {} references unknown action plan {}",
                     execution.id, execution.action_plan
                 ))),
+                current_user.is_admin,
             );
         }
     }
@@ -214,7 +235,9 @@ pub async fn import_json(
     sqlx::query!("DELETE FROM action_plans")
         .execute(&mut *tx)
         .await?;
-    sqlx::query!("DELETE FROM actions").execute(&mut *tx).await?;
+    sqlx::query!("DELETE FROM actions")
+        .execute(&mut *tx)
+        .await?;
 
     let mut action_by_name: HashMap<String, Uuid> = HashMap::new();
 
@@ -283,7 +306,18 @@ pub async fn import_json(
             backup.action_plans.len(),
             backup.action_plan_executions.len()
         ))),
+        current_user.is_admin,
     )
+}
+
+fn require_admin(user: &CurrentUser) -> Result<(), AppError> {
+    if user.is_admin {
+        Ok(())
+    } else {
+        Err(AppError::forbidden(
+            "Only admin users can access backup and restore.",
+        ))
+    }
 }
 
 async fn ensure_action_id(
@@ -356,6 +390,7 @@ pub struct BackupExecutionItem {
 #[derive(Debug, Serialize)]
 struct BackupPageView {
     notice: Option<BackupNotice>,
+    is_admin: bool,
 }
 
 #[derive(Debug, Serialize)]
