@@ -227,7 +227,10 @@ fn router() -> Router<AppState> {
         .route("/backup/export.json", get(backup::export_json))
         .route("/backup/import", post(backup::import_json))
         .route("/users", get(users::index).post(users::create_post))
-        .route("/users/{id}/delete", post(users::delete_post))
+        .route(
+            "/users/{id}/delete",
+            get(users::delete_get).post(users::delete_post),
+        )
         .route_layer(middleware::from_extractor::<RequireAdmin>());
 
     Router::new()
@@ -302,10 +305,7 @@ where
 {
     type Rejection = AppError;
 
-    async fn from_request_parts(
-        parts: &mut Parts,
-        _state: &S,
-    ) -> Result<Self, Self::Rejection> {
+    async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
         let current_user = parts
             .extensions
             .get::<CurrentUser>()

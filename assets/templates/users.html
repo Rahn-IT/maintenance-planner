@@ -38,9 +38,7 @@
             <td>{% if user.is_admin %}Admin{% else %}User{% endif %}</td>
             <td class="actions-col">
                 {% if user.id != current_user_id %}
-                <form method="post" action="/users/{{ user.id }}/delete">
-                    <input class="btn btn-danger" type="submit" value="Delete" />
-                </form>
+                <a class="btn btn-danger" href="/users/{{ user.id }}/delete">Delete</a>
                 {% endif %}
             </td>
         </tr>

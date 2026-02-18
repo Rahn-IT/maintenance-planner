@@ -52,6 +52,14 @@ struct UserListItem {
 }
 
 #[derive(Debug, Serialize)]
+struct DeleteUserConfirmView {
+    id: Uuid,
+    name: String,
+    role: String,
+    show_users_link: bool,
+}
+
+#[derive(Debug, Serialize)]
 struct LoginView {
     has_error: bool,
     error_message: Option<String>,
@@ -367,6 +375,61 @@ pub async fn delete_post(
     tx.commit().await?;
 
     Ok(Redirect::to("/users"))
+}
+
+pub async fn delete_get(
+    State(state): State<AppState>,
+    current_user: CurrentUser,
+    Path(id): Path<Uuid>,
+) -> Result<Html<String>, AppError> {
+    require_admin(&current_user)?;
+
+    if current_user.id == id {
+        return Err(AppError::conflict(
+            "You cannot delete your own active user.",
+        ));
+    }
+
+    let target = sqlx::query_as::<_, User>(
+        "SELECT id, name, is_admin, password_hash FROM users WHERE id = $1 LIMIT 1",
+    )
+    .bind(id)
+    .fetch_optional(&state.db)
+    .await?;
+
+    let Some(target) = target else {
+        return Err(AppError::not_found_for(
+            "User",
+            format!("No user exists for id: {}", id),
+        ));
+    };
+
+    if target.is_admin != 0 {
+        let admin_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users WHERE is_admin = 1")
+            .fetch_one(&state.db)
+            .await?;
+
+        if admin_count <= 1 {
+            return Err(AppError::conflict("At least one admin user must remain."));
+        }
+    }
+
+    let template = state
+        .jinja
+        .get_template("user_delete_confirm.html")
+        .expect("template is loaded");
+    let rendered = template.render(DeleteUserConfirmView {
+        id: target.id,
+        name: target.name,
+        role: if target.is_admin != 0 {
+            "Admin".to_string()
+        } else {
+            "User".to_string()
+        },
+        show_users_link: true,
+    })?;
+
+    Ok(Html(rendered))
 }
 
 fn hash_password(password: &str) -> Result<String, AppError> {
