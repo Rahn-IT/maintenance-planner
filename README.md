@@ -21,6 +21,11 @@ You can then execute an action plan and just check one item after the other, whi
 
 We use this for maintenance or setting up new PCs so we don't forget any steps.
 
+## Installation
+
+You can deploy this app using Docker.
+Take a look at the [docker-compose.yml](docker-compose.yml) for a simple reference.
+
 ## Tech Stack
 
 This is built with Rust, SQLx and HTML templates.

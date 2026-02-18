@@ -1,0 +1,10 @@
+volumes:
+  db:
+
+services:
+  app:
+    image: ghcr.io/rahn-it/maintenance-planner:master
+    volumes:
+      - db:/app/db
+    ports:
+      - 4040:4040
