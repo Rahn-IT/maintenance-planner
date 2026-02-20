@@ -4,7 +4,7 @@ use axum::{
     Router,
     extract::{FromRequestParts, Request, State},
     http::request::Parts,
-    http::{HeaderValue, StatusCode, header},
+    http::{HeaderValue, header},
     middleware::{self, Next},
     response::{IntoResponse, Response},
     routing::{get, post},
@@ -17,8 +17,10 @@ use uuid::Uuid;
 
 mod action_plan;
 mod backup;
+mod error;
 mod executions;
 mod users;
+pub use error::AppError;
 
 const DB_PATH: &str = "./db/db.sqlite";
 
@@ -35,146 +37,6 @@ pub struct CurrentUser {
     pub(crate) is_admin: bool,
 }
 
-#[derive(Debug)]
-struct AppError {
-    status: StatusCode,
-    message: String,
-    not_found_title: Option<String>,
-}
-
-impl AppError {
-    fn internal<E>(err: E) -> Self
-    where
-        E: Into<anyhow::Error>,
-    {
-        Self {
-            status: StatusCode::INTERNAL_SERVER_ERROR,
-            message: err.into().to_string(),
-            not_found_title: None,
-        }
-    }
-
-    pub fn not_found_for(title: impl Into<String>, message: impl Into<String>) -> Self {
-        Self {
-            status: StatusCode::NOT_FOUND,
-            message: message.into(),
-            not_found_title: Some(title.into()),
-        }
-    }
-
-    pub fn conflict(message: impl Into<String>) -> Self {
-        Self {
-            status: StatusCode::CONFLICT,
-            message: message.into(),
-            not_found_title: None,
-        }
-    }
-
-    pub fn forbidden(message: impl Into<String>) -> Self {
-        Self {
-            status: StatusCode::FORBIDDEN,
-            message: message.into(),
-            not_found_title: None,
-        }
-    }
-
-    pub fn unauthorized(message: impl Into<String>) -> Self {
-        Self {
-            status: StatusCode::UNAUTHORIZED,
-            message: message.into(),
-            not_found_title: None,
-        }
-    }
-}
-
-impl<E> From<E> for AppError
-where
-    E: Into<anyhow::Error>,
-{
-    fn from(err: E) -> Self {
-        Self::internal(err)
-    }
-}
-
-impl IntoResponse for AppError {
-    fn into_response(self) -> Response {
-        if self.status == StatusCode::NOT_FOUND
-            || self.status == StatusCode::CONFLICT
-            || self.status == StatusCode::FORBIDDEN
-            || self.status == StatusCode::UNAUTHORIZED
-        {
-            let (title, button_label, button_href): (String, &str, &str) =
-                if self.status == StatusCode::NOT_FOUND {
-                    (
-                        format!(
-                            "{} Not Found",
-                            self.not_found_title.as_deref().unwrap_or("Site")
-                        ),
-                        "Back Home",
-                        "/",
-                    )
-                } else if self.status == StatusCode::FORBIDDEN {
-                    ("Forbidden".to_string(), "Back Home", "/")
-                } else if self.status == StatusCode::UNAUTHORIZED {
-                    ("Unauthorized".to_string(), "Login", "/login")
-                } else {
-                    ("Cannot Save Changes".to_string(), "Back Home", "/")
-                };
-
-            let html = format!(
-                r#"<!doctype html>
-<html>
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Not Found</title>
-    <link rel="stylesheet" href="/static/style.css" />
-    <script src="/static/script.js"></script>
-  </head>
-  <body>
-    <nav class="top-nav">
-      <div class="top-nav-inner">
-        <div class="nav-left">
-          <a class="brand" href="/">Maintenance Planner</a>
-          <a class="nav-link" href="/">Home</a>
-          <a class="nav-link" href="/executions">Executions</a>
-        </div>
-        <a class="nav-link" href="/action_plan/new">New Plan</a>
-      </div>
-    </nav>
-    <main class="page">
-      <section class="content-card">
-        <h1 class="page-title">{}</h1>
-        <p class="muted">{}</p>
-        <div class="toolbar">
-          <a class="btn btn-primary" href="{}">{}</a>
-        </div>
-      </section>
-    </main>
-  </body>
-</html>"#,
-                title, self.message, button_href, button_label
-            );
-
-            return (
-                self.status,
-                [(
-                    header::CONTENT_TYPE,
-                    HeaderValue::from_static(mime::TEXT_HTML_UTF_8.as_ref()),
-                )],
-                html,
-            )
-                .into_response();
-        }
-
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Something went wrong: {}", self.message),
-        )
-            .into_response()
-    }
-}
-
 #[tokio::main]
 async fn main() {
     if !tokio::fs::try_exists(DB_PATH).await.unwrap() {
@@ -185,7 +47,10 @@ async fn main() {
     }
 
     let db = SqlitePool::connect(DB_PATH).await.unwrap();
-    sqlx::migrate!("./migrations").run(&db).await.unwrap();
+    if let Err(err) = sqlx::migrate!("./migrations").run(&db).await {
+        eprintln!("Database migration failed: {}", format_migration_error(&err));
+        std::process::exit(1);
+    }
     run_action_gc(&db).await;
     run_session_gc(&db).await;
     tokio::spawn(run_action_gc_scheduler(db.clone()));
@@ -219,6 +84,26 @@ async fn main() {
         .unwrap();
     println!("Shutting down");
     db.close().await;
+}
+
+fn format_migration_error(err: &sqlx::migrate::MigrateError) -> String {
+    match err {
+        sqlx::migrate::MigrateError::VersionMismatch(version) => format!(
+            "migration {} was already applied but the file has changed. \
+             Restore the original migration file, or create a new migration for changes. \
+             For local/dev-only data, you can also delete ./db/db.sqlite and restart.",
+            version
+        ),
+        sqlx::migrate::MigrateError::VersionMissing(version) => format!(
+            "migration {} exists in _sqlx_migrations but is missing from ./migrations.",
+            version
+        ),
+        sqlx::migrate::MigrateError::Dirty(version) => format!(
+            "migration {} is partially applied. Fix it and clean up the _sqlx_migrations row.",
+            version
+        ),
+        _ => err.to_string(),
+    }
 }
 
 fn router() -> Router<AppState> {
@@ -452,7 +337,7 @@ async fn run_session_gc(db: &SqlitePool) {
             println!("Session GC: deleted {} expired session(s).", count);
         }
         Err(err) => {
-            eprintln!("Session GC failed: {}", err.message);
+            eprintln!("Session GC failed: {}", err);
         }
     }
 }
