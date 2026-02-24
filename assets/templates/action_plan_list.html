@@ -1,12 +1,18 @@
 {% extends 'layout.html' %} {% block title %} Action Plans {% endblock %}
 {% block top_actions %}
 <a class="btn btn-primary" href="/action_plan/new">New Action Plan</a>
-<a class="btn {% if not show_deleted %}is-active{% endif %}" href="/?sort={{ current_sort }}&deleted=false">Active Plans</a>
-<a class="btn {% if show_deleted %}is-active{% endif %}" href="/?sort={{ current_sort }}&deleted=true">Deleted Plans</a>
+<a class="btn {% if not show_deleted %}is-active{% endif %}" href="/?sort={{ current_sort }}&deleted=false&q={{ search_query }}">Active Plans</a>
+<a class="btn {% if show_deleted %}is-active{% endif %}" href="/?sort={{ current_sort }}&deleted=true&q={{ search_query }}">Deleted Plans</a>
 <span class="muted">Sort:</span>
-<a class="btn {% if current_sort == 'name' %}is-active{% endif %}" href="/?sort=name&deleted={{ show_deleted }}">A-Z</a>
-<a class="btn {% if current_sort == 'last_execution_desc' %}is-active{% endif %}" href="/?sort=last_execution_desc&deleted={{ show_deleted }}">Newest Execution</a>
-<a class="btn {% if current_sort == 'last_execution_asc' %}is-active{% endif %}" href="/?sort=last_execution_asc&deleted={{ show_deleted }}">Oldest Execution</a>
+<a class="btn {% if current_sort == 'name' %}is-active{% endif %}" href="/?sort=name&deleted={{ show_deleted }}&q={{ search_query }}">A-Z</a>
+<a class="btn {% if current_sort == 'last_execution_desc' %}is-active{% endif %}" href="/?sort=last_execution_desc&deleted={{ show_deleted }}&q={{ search_query }}">Newest Execution</a>
+<a class="btn {% if current_sort == 'last_execution_asc' %}is-active{% endif %}" href="/?sort=last_execution_asc&deleted={{ show_deleted }}&q={{ search_query }}">Oldest Execution</a>
+<form method="get" action="/" class="search-form">
+    <input type="hidden" name="sort" value="{{ current_sort }}" />
+    <input type="hidden" name="deleted" value="{{ show_deleted }}" />
+    <input type="text" name="q" value="{{ search_query }}" placeholder="Search plan title" />
+    <button class="btn" type="submit">Search</button>
+</form>
 {% endblock %}
 {% block content %}
 <div class="plan-list">

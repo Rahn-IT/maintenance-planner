@@ -1,4 +1,11 @@
-{% extends 'layout.html' %} {% block title %} Executions {% endblock %} {% block content %}
+{% extends 'layout.html' %} {% block title %} Executions {% endblock %}
+{% block top_actions %}
+<form method="get" action="/executions" class="search-form">
+    <input type="text" name="q" value="{{ search_query }}" placeholder="Search execution note" />
+    <button class="btn" type="submit">Search</button>
+</form>
+{% endblock %}
+{% block content %}
 <h2>Unfinished</h2>
 <div class="plan-list">
     {% for execution in unfinished_executions %}

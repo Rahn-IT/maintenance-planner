@@ -24,6 +24,7 @@ pub struct ActionPlanList {
     action_plans: Vec<ActionPlanListItem>,
     current_sort: String,
     show_deleted: bool,
+    search_query: String,
     is_admin: bool,
 }
 
@@ -42,35 +43,74 @@ pub async fn index(
 ) -> Result<Html<String>, AppError> {
     let sort = query.sort.unwrap_or_else(|| "name".to_string());
     let show_deleted = query.deleted.unwrap_or(false);
+    let search_query = query.q.unwrap_or_default().trim().to_string();
 
     let action_plans = if show_deleted {
-        sqlx::query_as!(
-            ActionPlan,
-            r#"
-            SELECT
-                id as "id: uuid::Uuid",
-                name,
-                deleted_at as "deleted_at?"
-            FROM action_plans
-            WHERE deleted_at > 0
-            "#
-        )
-        .fetch_all(&state.db)
-        .await?
+        if search_query.is_empty() {
+            sqlx::query_as!(
+                ActionPlan,
+                r#"
+                SELECT
+                    id as "id: uuid::Uuid",
+                    name,
+                    deleted_at as "deleted_at?"
+                FROM action_plans
+                WHERE deleted_at > 0
+                "#
+            )
+            .fetch_all(&state.db)
+            .await?
+        } else {
+            let search_pattern = format!("%{}%", search_query);
+            sqlx::query_as!(
+                ActionPlan,
+                r#"
+                SELECT
+                    id as "id: uuid::Uuid",
+                    name,
+                    deleted_at as "deleted_at?"
+                FROM action_plans
+                WHERE deleted_at > 0
+                    AND LOWER(name) LIKE LOWER($1)
+                "#,
+                search_pattern
+            )
+            .fetch_all(&state.db)
+            .await?
+        }
     } else {
-        sqlx::query_as!(
-            ActionPlan,
-            r#"
-            SELECT
-                id as "id: uuid::Uuid",
-                name,
-                deleted_at as "deleted_at?"
-            FROM action_plans
-            WHERE deleted_at IS NULL OR deleted_at <= 0
-            "#
-        )
-        .fetch_all(&state.db)
-        .await?
+        if search_query.is_empty() {
+            sqlx::query_as!(
+                ActionPlan,
+                r#"
+                SELECT
+                    id as "id: uuid::Uuid",
+                    name,
+                    deleted_at as "deleted_at?"
+                FROM action_plans
+                WHERE deleted_at IS NULL OR deleted_at <= 0
+                "#
+            )
+            .fetch_all(&state.db)
+            .await?
+        } else {
+            let search_pattern = format!("%{}%", search_query);
+            sqlx::query_as!(
+                ActionPlan,
+                r#"
+                SELECT
+                    id as "id: uuid::Uuid",
+                    name,
+                    deleted_at as "deleted_at?"
+                FROM action_plans
+                WHERE (deleted_at IS NULL OR deleted_at <= 0)
+                    AND LOWER(name) LIKE LOWER($1)
+                "#,
+                search_pattern
+            )
+            .fetch_all(&state.db)
+            .await?
+        }
     };
 
     let mut action_plan_list = Vec::with_capacity(action_plans.len());
@@ -155,6 +195,7 @@ pub async fn index(
         action_plans,
         current_sort: sort,
         show_deleted,
+        search_query,
         is_admin: current_user.is_admin,
     })?;
 
@@ -677,6 +718,7 @@ pub struct EditContext {
 pub struct ActionPlanListQuery {
     sort: Option<String>,
     deleted: Option<bool>,
+    q: Option<String>,
 }
 
 struct ActionPlanListSortItem {

@@ -1,6 +1,6 @@
 use axum::{
     Json,
-    extract::{Path, State},
+    extract::{Path, Query, State},
     response::{Html, Redirect},
 };
 use axum_extra::extract::Form;
@@ -13,41 +13,89 @@ use crate::{AppError, AppState, CurrentUser, format_unix_timestamp};
 pub async fn index(
     State(state): State<AppState>,
     current_user: CurrentUser,
+    Query(query): Query<ExecutionListQuery>,
 ) -> Result<Html<String>, AppError> {
-    let unfinished_execution_rows = sqlx::query_as!(
-        UnfinishedExecutionListItemRow,
-        r#"
-        SELECT
-            action_plan_executions.id as "id!: uuid::Uuid",
-            action_plans.name as "action_plan_name!",
-            action_plan_executions.started as "started!",
-            action_plan_executions.note
-        FROM action_plan_executions
-        INNER JOIN action_plans ON action_plans.id = action_plan_executions.action_plan
-        WHERE action_plan_executions.finished IS NULL OR action_plan_executions.finished <= 0
-        ORDER BY action_plan_executions.started DESC
-        "#
-    )
-    .fetch_all(&state.db)
-    .await?;
+    let search_query = query.q.unwrap_or_default().trim().to_string();
 
-    let finished_execution_rows = sqlx::query_as!(
-        FinishedExecutionListItemRow,
-        r#"
-        SELECT
-            action_plan_executions.id as "id!: uuid::Uuid",
-            action_plans.name as "action_plan_name!",
-            action_plan_executions.started as "started!",
-            action_plan_executions.finished as "finished!",
-            action_plan_executions.note
-        FROM action_plan_executions
-        INNER JOIN action_plans ON action_plans.id = action_plan_executions.action_plan
-        WHERE action_plan_executions.finished > 0
-        ORDER BY action_plan_executions.finished DESC
-        "#
-    )
-    .fetch_all(&state.db)
-    .await?;
+    let unfinished_execution_rows = if search_query.is_empty() {
+        sqlx::query_as!(
+            UnfinishedExecutionListItemRow,
+            r#"
+            SELECT
+                action_plan_executions.id as "id!: uuid::Uuid",
+                action_plans.name as "action_plan_name!",
+                action_plan_executions.started as "started!",
+                action_plan_executions.note
+            FROM action_plan_executions
+            INNER JOIN action_plans ON action_plans.id = action_plan_executions.action_plan
+            WHERE action_plan_executions.finished IS NULL OR action_plan_executions.finished <= 0
+            ORDER BY action_plan_executions.started DESC
+            "#
+        )
+        .fetch_all(&state.db)
+        .await?
+    } else {
+        let search_pattern = format!("%{}%", search_query);
+        sqlx::query_as!(
+            UnfinishedExecutionListItemRow,
+            r#"
+            SELECT
+                action_plan_executions.id as "id!: uuid::Uuid",
+                action_plans.name as "action_plan_name!",
+                action_plan_executions.started as "started!",
+                action_plan_executions.note
+            FROM action_plan_executions
+            INNER JOIN action_plans ON action_plans.id = action_plan_executions.action_plan
+            WHERE (action_plan_executions.finished IS NULL OR action_plan_executions.finished <= 0)
+                AND LOWER(IFNULL(action_plan_executions.note, '')) LIKE LOWER($1)
+            ORDER BY action_plan_executions.started DESC
+            "#,
+            search_pattern
+        )
+        .fetch_all(&state.db)
+        .await?
+    };
+
+    let finished_execution_rows = if search_query.is_empty() {
+        sqlx::query_as!(
+            FinishedExecutionListItemRow,
+            r#"
+            SELECT
+                action_plan_executions.id as "id!: uuid::Uuid",
+                action_plans.name as "action_plan_name!",
+                action_plan_executions.started as "started!",
+                action_plan_executions.finished as "finished!",
+                action_plan_executions.note
+            FROM action_plan_executions
+            INNER JOIN action_plans ON action_plans.id = action_plan_executions.action_plan
+            WHERE action_plan_executions.finished > 0
+            ORDER BY action_plan_executions.finished DESC
+            "#
+        )
+        .fetch_all(&state.db)
+        .await?
+    } else {
+        let search_pattern = format!("%{}%", search_query);
+        sqlx::query_as!(
+            FinishedExecutionListItemRow,
+            r#"
+            SELECT
+                action_plan_executions.id as "id!: uuid::Uuid",
+                action_plans.name as "action_plan_name!",
+                action_plan_executions.started as "started!",
+                action_plan_executions.finished as "finished!",
+                action_plan_executions.note
+            FROM action_plan_executions
+            INNER JOIN action_plans ON action_plans.id = action_plan_executions.action_plan
+            WHERE action_plan_executions.finished > 0
+                AND LOWER(IFNULL(action_plan_executions.note, '')) LIKE LOWER($1)
+            ORDER BY action_plan_executions.finished DESC
+            "#,
+            search_pattern
+        )
+        .fetch_all(&state.db)
+        .await?
+    };
 
     let unfinished_executions = unfinished_execution_rows
         .into_iter()
@@ -77,6 +125,7 @@ pub async fn index(
     let rendered = template.render(&ActionPlanExecutionList {
         unfinished_executions,
         finished_executions,
+        search_query,
         is_admin: current_user.is_admin,
     })?;
 
@@ -565,6 +614,7 @@ struct ActionPlanExecutionShowRow {
 struct ActionPlanExecutionList {
     unfinished_executions: Vec<UnfinishedExecutionListItem>,
     finished_executions: Vec<FinishedExecutionListItem>,
+    search_query: String,
     is_admin: bool,
 }
 
@@ -620,6 +670,11 @@ fn unix_now() -> i64 {
         .duration_since(std::time::UNIX_EPOCH)
         .map(|duration| duration.as_secs() as i64)
         .unwrap_or(0)
+}
+
+#[derive(Debug, Default, Deserialize)]
+pub struct ExecutionListQuery {
+    q: Option<String>,
 }
 
 fn normalize_note(note: Option<String>) -> Option<String> {
