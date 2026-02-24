@@ -12,13 +12,13 @@
         />
         <table id="items" class="items-table form-table" data-action-search-url="/actions/search">
             <thead>
-                <tr><th>Item</th><th class="actions-col">Action</th></tr>
+                <tr><th>Item</th><th class="actions-col">Actions</th></tr>
             </thead>
             <tbody>
                 <!--Template Row-->
-                <tr class="template"><td><input type="text" name="items" class="js-action-item-input" form="" placeholder="Checklist item" autocomplete="off"></td><td><button class="remove btn btn-danger" type="button">Remove</button></td></tr>
+                <tr class="template"><td><input type="text" name="items" class="js-action-item-input" form="" placeholder="Checklist item" autocomplete="off"></td><td class="row-actions"><button class="drag-handle btn" type="button" draggable="false">Move</button><button class="remove btn btn-danger" type="button">Remove</button></td></tr>
                 {% for item in items %}
-                <tr><td><input type="text" name="items" class="js-action-item-input" value="{{ item.name }}" autocomplete="off"></td><td><button class="remove btn btn-danger" type="button">Remove</button></td></tr>
+                <tr><td><input type="text" name="items" class="js-action-item-input" value="{{ item.name }}" autocomplete="off"></td><td class="row-actions"><button class="drag-handle btn" type="button" draggable="false">Move</button><button class="remove btn btn-danger" type="button">Remove</button></td></tr>
                 {% endfor %}
             </tbody>
         </table>
@@ -28,6 +28,7 @@
     </form>
 </div>
 <script src="/static/action_item_search.js"></script>
+<script src="/static/action_plan_reorder.js"></script>
 {% endblock %}
 {% block bottom_actions %}
 <a class="btn" href="{{ cancel_url }}">Cancel</a>

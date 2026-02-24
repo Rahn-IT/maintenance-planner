@@ -296,6 +296,20 @@ textarea:focus {
     white-space: nowrap;
 }
 
+.row-actions {
+    display: flex;
+    gap: 0.45rem;
+    justify-content: flex-end;
+}
+
+.btn.drag-handle {
+    cursor: grab;
+}
+
+.btn.drag-handle:active {
+    cursor: grabbing;
+}
+
 .done-col {
     width: 1%;
     white-space: nowrap;
@@ -394,6 +408,18 @@ input[type="submit"].btn-primary:hover {
 
 .template {
     display: none;
+}
+
+#items tr.is-dragging {
+    opacity: 0.55;
+}
+
+#items tr.drag-over-top {
+    border-top: 2px solid var(--brand);
+}
+
+#items tr.drag-over-bottom {
+    border-bottom: 2px solid var(--brand);
 }
 
 .autocomplete-cell {

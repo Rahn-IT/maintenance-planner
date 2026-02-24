@@ -184,6 +184,16 @@ fn router() -> Router<AppState> {
                 include_bytes!("../assets/static/action_item_search.js"),
             )),
         )
+        .route(
+            "/static/action_plan_reorder.js",
+            get((
+                [(
+                    header::CONTENT_TYPE,
+                    HeaderValue::from_static(mime::APPLICATION_JAVASCRIPT_UTF_8.as_ref()),
+                )],
+                include_bytes!("../assets/static/action_plan_reorder.js"),
+            )),
+        )
 }
 
 struct RequireAdmin;
