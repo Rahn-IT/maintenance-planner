@@ -88,7 +88,8 @@ pub async fn export_json(
             id as "id!: uuid::Uuid",
             action_plan as "action_plan: uuid::Uuid",
             started as "started!",
-            finished as "finished?"
+            finished as "finished?",
+            note
         FROM action_plan_executions
         ORDER BY started DESC
         "#
@@ -119,6 +120,7 @@ pub async fn export_json(
             action_plan: execution.action_plan,
             started: execution.started,
             finished: execution.finished,
+            note: execution.note,
             items: items
                 .into_iter()
                 .map(|item| BackupExecutionItem {
@@ -270,11 +272,12 @@ pub async fn import_json(
 
     for execution in &backup.action_plan_executions {
         sqlx::query!(
-            "INSERT INTO action_plan_executions (id, action_plan, started, finished) VALUES ($1, $2, $3, $4)",
+            "INSERT INTO action_plan_executions (id, action_plan, started, finished, note) VALUES ($1, $2, $3, $4, $5)",
             execution.id,
             execution.action_plan,
             execution.started,
-            execution.finished
+            execution.finished,
+            execution.note
         )
         .execute(&mut *tx)
         .await?;
@@ -377,6 +380,7 @@ pub struct BackupExecution {
     action_plan: Uuid,
     started: i64,
     finished: Option<i64>,
+    note: Option<String>,
     items: Vec<BackupExecutionItem>,
 }
 

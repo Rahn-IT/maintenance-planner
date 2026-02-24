@@ -462,7 +462,8 @@ pub async fn show_action_plan(
         r#"
         SELECT
             id as "id!: uuid::Uuid",
-            started as "started!"
+            started as "started!",
+            note
         FROM action_plan_executions
         WHERE action_plan = $1
             AND (finished IS NULL OR finished <= 0)
@@ -479,7 +480,8 @@ pub async fn show_action_plan(
         SELECT
             id as "id!: uuid::Uuid",
             started as "started!",
-            finished as "finished!"
+            finished as "finished!",
+            note
         FROM action_plan_executions
         WHERE action_plan = $1
             AND finished > 0
@@ -495,6 +497,7 @@ pub async fn show_action_plan(
         .map(|row| PlanExecutionActive {
             id: row.id,
             started_display: format_unix_timestamp(row.started),
+            note: row.note,
         })
         .collect();
 
@@ -504,6 +507,7 @@ pub async fn show_action_plan(
             id: row.id,
             started_display: format_unix_timestamp(row.started),
             finished_display: format_unix_timestamp(row.finished),
+            note: row.note,
         })
         .collect();
 
@@ -619,6 +623,7 @@ pub struct ActionPlanItem {
 struct PlanExecutionActive {
     id: Uuid,
     started_display: String,
+    note: Option<String>,
 }
 
 #[derive(FromRow, Serialize)]
@@ -626,12 +631,14 @@ struct PlanExecutionFinished {
     id: Uuid,
     started_display: String,
     finished_display: String,
+    note: Option<String>,
 }
 
 #[derive(FromRow)]
 struct PlanExecutionActiveRow {
     id: Uuid,
     started: i64,
+    note: Option<String>,
 }
 
 #[derive(FromRow)]
@@ -639,6 +646,7 @@ struct PlanExecutionFinishedRow {
     id: Uuid,
     started: i64,
     finished: i64,
+    note: Option<String>,
 }
 
 fn edit_action_plan(state: &AppState, plan: &ActionPlanEdit) -> Result<Html<String>, AppError> {

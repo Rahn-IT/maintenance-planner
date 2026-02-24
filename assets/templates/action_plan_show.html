@@ -44,6 +44,7 @@
     <a class="plan-card" href="/executions/{{ execution.id }}">
         <h2>Execution {{ execution.id }}</h2>
         <p class="muted">Started: {{ execution.started_display }}</p>
+        {% if execution.note %}<p class="muted">Note: {{ execution.note }}</p>{% endif %}
     </a>
     {% else %}
     <p class="muted">No active executions.</p>
@@ -57,6 +58,7 @@
         <h2>Execution {{ execution.id }}</h2>
         <p class="muted">Started: {{ execution.started_display }}</p>
         <p class="muted">Finished: {{ execution.finished_display }}</p>
+        {% if execution.note %}<p class="muted">Note: {{ execution.note }}</p>{% endif %}
     </a>
     {% else %}
     <p class="muted">No finished executions yet.</p>

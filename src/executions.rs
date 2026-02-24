@@ -3,6 +3,7 @@ use axum::{
     extract::{Path, State},
     response::{Html, Redirect},
 };
+use axum_extra::extract::Form;
 use serde::{Deserialize, Serialize};
 use sqlx::prelude::FromRow;
 use uuid::Uuid;
@@ -19,7 +20,8 @@ pub async fn index(
         SELECT
             action_plan_executions.id as "id!: uuid::Uuid",
             action_plans.name as "action_plan_name!",
-            action_plan_executions.started as "started!"
+            action_plan_executions.started as "started!",
+            action_plan_executions.note
         FROM action_plan_executions
         INNER JOIN action_plans ON action_plans.id = action_plan_executions.action_plan
         WHERE action_plan_executions.finished IS NULL OR action_plan_executions.finished <= 0
@@ -36,7 +38,8 @@ pub async fn index(
             action_plan_executions.id as "id!: uuid::Uuid",
             action_plans.name as "action_plan_name!",
             action_plan_executions.started as "started!",
-            action_plan_executions.finished as "finished!"
+            action_plan_executions.finished as "finished!",
+            action_plan_executions.note
         FROM action_plan_executions
         INNER JOIN action_plans ON action_plans.id = action_plan_executions.action_plan
         WHERE action_plan_executions.finished > 0
@@ -52,6 +55,7 @@ pub async fn index(
             id: row.id,
             action_plan_name: row.action_plan_name,
             started_display: format_unix_timestamp(row.started),
+            note: row.note,
         })
         .collect();
 
@@ -62,6 +66,7 @@ pub async fn index(
             action_plan_name: row.action_plan_name,
             started_display: format_unix_timestamp(row.started),
             finished_display: format_unix_timestamp(row.finished),
+            note: row.note,
         })
         .collect();
 
@@ -106,7 +111,7 @@ pub async fn create_post(
     let now = unix_now();
 
     sqlx::query!(
-        "INSERT INTO action_plan_executions (id, action_plan, started, finished) VALUES ($1, $2, $3, NULL)",
+        "INSERT INTO action_plan_executions (id, action_plan, started, finished, note) VALUES ($1, $2, $3, NULL, NULL)",
         execution_id,
         id,
         now,
@@ -161,7 +166,8 @@ pub async fn show(
             action_plans.name as "action_plan_name!",
             action_plans.deleted_at as "action_plan_deleted_at?",
             action_plan_executions.started as "started!",
-            action_plan_executions.finished as "finished?"
+            action_plan_executions.finished as "finished?",
+            action_plan_executions.note
         FROM action_plan_executions
         INNER JOIN action_plans ON action_plans.id = action_plan_executions.action_plan
         WHERE action_plan_executions.id = $1
@@ -219,6 +225,7 @@ pub async fn show(
             .finished
             .filter(|value| *value > 0)
             .map(format_unix_timestamp),
+        note: execution.note,
         is_completed: execution.finished.map(|value| value > 0).unwrap_or(false),
         can_reopen: execution
             .finished
@@ -240,6 +247,35 @@ pub async fn show(
     let rendered = template.render(&view)?;
 
     Ok(Html(rendered))
+}
+
+pub async fn update_note_post(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+    Form(form): Form<ExecutionNoteForm>,
+) -> Result<Redirect, AppError> {
+    let note = normalize_note(form.note);
+
+    let result = sqlx::query!(
+        r#"
+        UPDATE action_plan_executions
+        SET note = $1
+        WHERE id = $2
+        "#,
+        note,
+        id
+    )
+    .execute(&state.db)
+    .await?;
+
+    if result.rows_affected() == 0 {
+        return Err(AppError::not_found_for(
+            "Execution",
+            format!("No execution exists for id: {}", id),
+        ));
+    }
+
+    Ok(Redirect::to(&format!("/executions/{}", id)))
 }
 
 pub async fn complete_get(
@@ -479,6 +515,7 @@ struct ActionPlanExecutionShow {
     action_plan_name: String,
     started_display: String,
     finished_display: Option<String>,
+    note: Option<String>,
     is_completed: bool,
     can_reopen: bool,
     is_action_plan_deleted: bool,
@@ -521,6 +558,7 @@ struct ActionPlanExecutionShowRow {
     action_plan_deleted_at: Option<i64>,
     started: i64,
     finished: Option<i64>,
+    note: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -535,6 +573,7 @@ struct UnfinishedExecutionListItem {
     id: Uuid,
     action_plan_name: String,
     started_display: String,
+    note: Option<String>,
 }
 
 #[derive(FromRow, Serialize)]
@@ -543,6 +582,7 @@ struct FinishedExecutionListItem {
     action_plan_name: String,
     started_display: String,
     finished_display: String,
+    note: Option<String>,
 }
 
 #[derive(FromRow)]
@@ -550,6 +590,7 @@ struct UnfinishedExecutionListItemRow {
     id: Uuid,
     action_plan_name: String,
     started: i64,
+    note: Option<String>,
 }
 
 #[derive(FromRow)]
@@ -558,6 +599,12 @@ struct FinishedExecutionListItemRow {
     action_plan_name: String,
     started: i64,
     finished: i64,
+    note: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub struct ExecutionNoteForm {
+    note: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -573,4 +620,15 @@ fn unix_now() -> i64 {
         .duration_since(std::time::UNIX_EPOCH)
         .map(|duration| duration.as_secs() as i64)
         .unwrap_or(0)
+}
+
+fn normalize_note(note: Option<String>) -> Option<String> {
+    note.and_then(|value| {
+        let trimmed = value.trim();
+        if trimmed.is_empty() {
+            None
+        } else {
+            Some(trimmed.to_string())
+        }
+    })
 }

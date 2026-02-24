@@ -48,7 +48,10 @@ async fn main() {
 
     let db = SqlitePool::connect(DB_PATH).await.unwrap();
     if let Err(err) = sqlx::migrate!("./migrations").run(&db).await {
-        eprintln!("Database migration failed: {}", format_migration_error(&err));
+        eprintln!(
+            "Database migration failed: {}",
+            format_migration_error(&err)
+        );
         std::process::exit(1);
     }
     run_action_gc(&db).await;
@@ -123,6 +126,7 @@ fn router() -> Router<AppState> {
         .route("/", get(action_plan::index))
         .route("/executions", get(executions::index))
         .route("/executions/{id}", get(executions::show))
+        .route("/executions/{id}/note", post(executions::update_note_post))
         .route("/executions/{id}/complete", get(executions::complete_get))
         .route("/executions/{id}/reopen", get(executions::reopen_get))
         .route(

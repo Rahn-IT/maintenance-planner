@@ -11,6 +11,14 @@
     <p class="muted">Execution ID: {{ id }}</p>
     <p class="muted">Started: {{ started_display }}</p>
     <p class="muted">Completed: {% if finished_display %}{{ finished_display }}{% else %}-{% endif %}</p>
+    {% if note %}
+    <p class="muted">Note: {{ note }}</p>
+    {% endif %}
+    <form class="execution-note-form" method="post" action="/executions/{{ id }}/note">
+        <label for="note">Execution note</label>
+        <textarea id="note" name="note" rows="3" placeholder="Optional note for this execution">{{ note if note else '' }}</textarea>
+        <button class="btn" type="submit">Save Note</button>
+    </form>
     <table class="items-table">
         <thead>
             <tr><th>Task</th><th class="done-col">Done</th></tr>
