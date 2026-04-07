@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id as \"id: uuid::Uuid\" FROM action_plan_executions WHERE id = $1",
+  "describe": {
+    "columns": [
+      {
+        "name": "id: uuid::Uuid",
+        "ordinal": 0,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "50969404b5ed808ef9ce1d6954ecc3ca75bb8e8569c34f6d48d74904017431bd"
+}

@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT\n                actions.name as \"name!\",\n                COUNT(DISTINCT action_items.action_plan) as \"usage_count!: i64\"\n            FROM actions\n            LEFT JOIN action_items ON action_items.action = actions.id\n            WHERE LOWER(actions.name) LIKE LOWER($1)\n            GROUP BY actions.id, actions.name\n            ORDER BY COUNT(DISTINCT action_items.action_plan) DESC, actions.name ASC\n            LIMIT 10\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "name!",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "usage_count!: i64",
+        "ordinal": 1,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "1c2641ee2be1dc51896caa0f20c012ea3fca30206cff24bf07100315df825643"
+}

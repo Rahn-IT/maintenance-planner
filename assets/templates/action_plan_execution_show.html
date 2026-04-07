@@ -14,11 +14,13 @@
     {% if note %}
     <p class="muted">Note: {{ note }}</p>
     {% endif %}
+    {% if not is_completed %}
     <form class="execution-note-form" method="post" action="/executions/{{ id }}/note">
         <label for="note">Execution note</label>
         <textarea id="note" name="note" rows="3" placeholder="Optional note for this execution">{{ note if note else '' }}</textarea>
         <button class="btn" type="submit">Save Note</button>
     </form>
+    {% endif %}
     <table class="items-table">
         <thead>
             <tr><th>Task</th><th class="done-col">Done</th></tr>

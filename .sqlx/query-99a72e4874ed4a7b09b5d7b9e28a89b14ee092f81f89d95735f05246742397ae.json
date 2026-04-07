@@ -1,0 +1,56 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        SELECT\n            action_plan_executions.id as \"id!: uuid::Uuid\",\n            action_plans.id as \"action_plan_id!: uuid::Uuid\",\n            action_plans.name as \"action_plan_name!\",\n            action_plans.deleted_at as \"action_plan_deleted_at?\",\n            action_plan_executions.started as \"started!\",\n            action_plan_executions.finished as \"finished?\",\n            action_plan_executions.note\n        FROM action_plan_executions\n        INNER JOIN action_plans ON action_plans.id = action_plan_executions.action_plan\n        WHERE action_plan_executions.id = $1\n        ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!: uuid::Uuid",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "action_plan_id!: uuid::Uuid",
+        "ordinal": 1,
+        "type_info": "Blob"
+      },
+      {
+        "name": "action_plan_name!",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "action_plan_deleted_at?",
+        "ordinal": 3,
+        "type_info": "Integer"
+      },
+      {
+        "name": "started!",
+        "ordinal": 4,
+        "type_info": "Integer"
+      },
+      {
+        "name": "finished?",
+        "ordinal": 5,
+        "type_info": "Integer"
+      },
+      {
+        "name": "note",
+        "ordinal": 6,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true,
+      false,
+      false,
+      true,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "99a72e4874ed4a7b09b5d7b9e28a89b14ee092f81f89d95735f05246742397ae"
+}

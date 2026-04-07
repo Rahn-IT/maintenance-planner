@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM action_plan_tags WHERE tag = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "033ff7a8ff45e729d0853815b156eb6de525c6e01356635076312912543be3d0"
+}

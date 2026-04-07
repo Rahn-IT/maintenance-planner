@@ -19,6 +19,7 @@ mod action_plan;
 mod backup;
 mod error;
 mod executions;
+mod tags;
 mod users;
 pub use error::AppError;
 
@@ -150,6 +151,12 @@ fn router() -> Router<AppState> {
         .route("/action_plan/{id}/edit", get(action_plan::edit_get))
         .route("/action_plan/{id}/edit", post(action_plan::edit_post))
         .route("/actions/search", get(action_plan::search_actions))
+        .route("/tags", get(tags::index))
+        .route("/tags/search", get(tags::search))
+        .route("/tags/new", post(tags::create_post))
+        .route("/tags/{id}/delete", get(tags::delete_get))
+        .route("/tags/{id}/edit", post(tags::edit_post))
+        .route("/tags/{id}/delete", post(tags::delete_post))
         .route("/setup", get(users::setup_get).post(users::setup_post))
         .route("/login", get(users::login_get).post(users::login_post))
         .route("/logout", post(users::logout_post))
@@ -192,6 +199,26 @@ fn router() -> Router<AppState> {
                     HeaderValue::from_static(mime::APPLICATION_JAVASCRIPT_UTF_8.as_ref()),
                 )],
                 include_bytes!("../assets/static/action_plan_reorder.js"),
+            )),
+        )
+        .route(
+            "/static/tag_filter.js",
+            get((
+                [(
+                    header::CONTENT_TYPE,
+                    HeaderValue::from_static(mime::APPLICATION_JAVASCRIPT_UTF_8.as_ref()),
+                )],
+                include_bytes!("../assets/static/tag_filter.js"),
+            )),
+        )
+        .route(
+            "/static/tag_picker.js",
+            get((
+                [(
+                    header::CONTENT_TYPE,
+                    HeaderValue::from_static(mime::APPLICATION_JAVASCRIPT_UTF_8.as_ref()),
+                )],
+                include_bytes!("../assets/static/tag_picker.js"),
             )),
         )
 }

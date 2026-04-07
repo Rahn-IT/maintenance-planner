@@ -10,6 +10,38 @@
             value="{{ name }}"
             placeholder="e.g. Monthly workstation maintenance"
         />
+        <div class="tag-selection-header">
+            <label>Tags</label>
+            <a href="/tags">Edit Tags</a>
+        </div>
+        <div class="tag-picker js-tag-picker" data-tag-search-url="/tags/search">
+            <div class="tag-picker-selected js-tag-picker-selected">
+            {% for tag in available_tags if tag.selected %}
+                <span class="tag-badge tag-picker-pill" style="{{ tag.color_style }}" data-tag-id="{{ tag.id }}">
+                    <span>{{ tag.name }}</span>
+                    <button type="button" class="tag-pill-remove" aria-label="Remove tag {{ tag.name }}">x</button>
+                </span>
+            {% else %}
+            {% endfor %}
+            </div>
+            <div class="tag-picker-input-wrap autocomplete-cell">
+                <input
+                    type="text"
+                    class="js-tag-picker-input"
+                    placeholder="Search tags"
+                    autocomplete="off"
+                />
+                <ul class="action-search-menu js-tag-picker-menu" role="listbox"></ul>
+            </div>
+            <div class="js-tag-picker-hidden-inputs">
+            {% for tag in available_tags if tag.selected %}
+                <input type="checkbox" name="tag_ids" value="{{ tag.id }}" checked hidden data-tag-id="{{ tag.id }}" />
+            {% endfor %}
+            </div>
+            {% if available_tags|length == 0 %}
+            <p class="muted">No tags yet. Create tags to organize plans.</p>
+            {% endif %}
+        </div>
         <table id="items" class="items-table form-table" data-action-search-url="/actions/search">
             <thead>
                 <tr><th>Item</th><th class="actions-col">Actions</th></tr>
@@ -29,6 +61,7 @@
 </div>
 <script src="/static/action_item_search.js"></script>
 <script src="/static/action_plan_reorder.js"></script>
+<script src="/static/tag_picker.js"></script>
 {% endblock %}
 {% block bottom_actions %}
 <a class="btn" href="{{ cancel_url }}">Cancel</a>

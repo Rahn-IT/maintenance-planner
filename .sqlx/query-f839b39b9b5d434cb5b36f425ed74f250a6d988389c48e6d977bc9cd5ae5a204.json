@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        SELECT\n            id as \"id: uuid::Uuid\",\n            name,\n            is_admin,\n            password_hash\n        FROM users\n        WHERE LOWER(name) = LOWER($1)\n        LIMIT 1\n        ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id: uuid::Uuid",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "name",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "is_admin",
+        "ordinal": 2,
+        "type_info": "Integer"
+      },
+      {
+        "name": "password_hash",
+        "ordinal": 3,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "f839b39b9b5d434cb5b36f425ed74f250a6d988389c48e6d977bc9cd5ae5a204"
+}

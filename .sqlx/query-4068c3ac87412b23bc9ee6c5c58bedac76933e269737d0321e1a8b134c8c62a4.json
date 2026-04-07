@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO action_plan_executions (id, action_plan, started, finished, note) VALUES ($1, $2, $3, $4, $5)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "4068c3ac87412b23bc9ee6c5c58bedac76933e269737d0321e1a8b134c8c62a4"
+}

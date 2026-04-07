@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        UPDATE action_plan_executions\n        SET finished = $1\n        WHERE id = $2\n            AND (finished IS NULL OR finished <= 0)\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "a6b047619406fc083614944c6b8a245c1c9d5e10f15d6a9bfdf2afec82802b5a"
+}

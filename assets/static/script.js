@@ -1,6 +1,12 @@
 window.onload = function () {
   const completeExecutionLink = document.querySelector(".execution-complete-link");
+  if (typeof window.initializeTagFilter === "function") {
+    window.initializeTagFilter();
+  }
   let bindActionItemSearchInput = () => {};
+  if (typeof window.initializeTagPicker === "function") {
+    window.initializeTagPicker();
+  }
   if (typeof window.initializeActionItemSearch === "function") {
     bindActionItemSearchInput = window.initializeActionItemSearch() || bindActionItemSearchInput;
   }

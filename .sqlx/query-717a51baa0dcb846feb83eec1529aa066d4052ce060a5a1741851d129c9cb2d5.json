@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        SELECT id as \"id: uuid::Uuid\"\n        FROM tags\n        WHERE LOWER(name) = LOWER($1)\n        ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id: uuid::Uuid",
+        "ordinal": 0,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "717a51baa0dcb846feb83eec1529aa066d4052ce060a5a1741851d129c9cb2d5"
+}

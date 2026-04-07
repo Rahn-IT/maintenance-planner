@@ -1,0 +1,44 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        SELECT\n            id as \"id!: uuid::Uuid\",\n            action_plan as \"action_plan: uuid::Uuid\",\n            started as \"started!\",\n            finished as \"finished?\",\n            note\n        FROM action_plan_executions\n        ORDER BY started DESC\n        ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!: uuid::Uuid",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "action_plan: uuid::Uuid",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "started!",
+        "ordinal": 2,
+        "type_info": "Integer"
+      },
+      {
+        "name": "finished?",
+        "ordinal": 3,
+        "type_info": "Integer"
+      },
+      {
+        "name": "note",
+        "ordinal": 4,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      true,
+      false,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "8be28f871c1158f08c5ac692bdd51edc2f5949efe4b97d569fa279658124d583"
+}

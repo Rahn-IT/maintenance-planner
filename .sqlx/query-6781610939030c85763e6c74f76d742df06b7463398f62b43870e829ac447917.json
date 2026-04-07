@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE action_plans SET name = $1 WHERE id = $2 AND (deleted_at IS NULL OR deleted_at <= 0)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "6781610939030c85763e6c74f76d742df06b7463398f62b43870e829ac447917"
+}

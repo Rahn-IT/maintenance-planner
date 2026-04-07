@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        SELECT\n            actions.id as \"id: uuid::Uuid\",\n            actions.name\n        FROM actions\n        WHERE NOT EXISTS (\n            SELECT 1\n            FROM action_items\n            WHERE action_items.action = actions.id\n        )\n        AND NOT EXISTS (\n            SELECT 1\n            FROM action_item_executions\n            WHERE action_item_executions.action = actions.id\n        )\n        ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id: uuid::Uuid",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "name",
+        "ordinal": 1,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "6b017b7e3f109d4686b0a505c43040b50a4f309faaf893c914d35963fe40906a"
+}

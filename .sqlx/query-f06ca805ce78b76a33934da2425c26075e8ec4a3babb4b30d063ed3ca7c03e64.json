@@ -1,0 +1,32 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT\n                action_items.action as \"action_id: uuid::Uuid\",\n                action_items.order_index,\n                actions.name as \"name!\"\n            FROM action_items\n            INNER JOIN actions ON actions.id = action_items.action\n            WHERE action_items.action_plan = $1\n            ORDER BY action_items.order_index ASC\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "action_id: uuid::Uuid",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "order_index",
+        "ordinal": 1,
+        "type_info": "Integer"
+      },
+      {
+        "name": "name!",
+        "ordinal": 2,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "f06ca805ce78b76a33934da2425c26075e8ec4a3babb4b30d063ed3ca7c03e64"
+}

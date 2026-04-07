@@ -131,11 +131,27 @@ a:hover {
 .search-form {
     display: flex;
     gap: 0.5rem;
-    align-items: center;
+    align-items: flex-end;
 }
 
 .search-form input[type="text"] {
     width: min(320px, 70vw);
+}
+
+.tag-create-form,
+.tag-edit-form {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.tag-create-form {
+    flex: 1 1 420px;
+}
+
+.tag-create-form input[type="text"],
+.tag-edit-form input[type="text"] {
+    flex: 1 1 auto;
 }
 
 .bottom-toolbar {
@@ -208,6 +224,25 @@ a:hover {
     font-weight: 600;
 }
 
+.tag-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+    margin: 0 0 0.8rem;
+}
+
+.tag-badge {
+    display: inline-flex;
+    align-items: center;
+    min-height: 1.9rem;
+    padding: 0.2rem 0.65rem;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    font-size: 0.9rem;
+    font-weight: 700;
+    line-height: 1.2;
+}
+
 .items-table {
     width: 100%;
     border-collapse: collapse;
@@ -237,6 +272,76 @@ a:hover {
     display: inline-block;
     margin-bottom: 0.4rem;
     font-weight: 600;
+}
+
+.tag-selection-header {
+    margin-top: 0.95rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.tag-picker {
+    margin: 0.65rem 0 0.2rem;
+}
+
+.tag-filter {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    min-width: min(320px, 70vw);
+}
+
+.tag-filter-selected {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+    min-height: 0.75rem;
+    margin-bottom: 0.45rem;
+}
+
+.tag-filter-input-wrap {
+    position: relative;
+}
+
+.tag-filter-pill {
+    gap: 0.45rem;
+    padding-right: 0.35rem;
+}
+
+.tag-picker-selected {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    margin-bottom: 0.6rem;
+    min-height: 2rem;
+}
+
+.tag-picker-input-wrap {
+    position: relative;
+}
+
+.tag-picker-pill {
+    gap: 0.45rem;
+    padding-right: 0.35rem;
+}
+
+.tag-pill-remove {
+    appearance: none;
+    border: none;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    font: inherit;
+    font-weight: 700;
+    line-height: 1;
+    padding: 0.2rem 0.25rem;
+    border-radius: 999px;
+}
+
+.tag-pill-remove:hover {
+    background: rgba(255, 255, 255, 0.22);
 }
 
 input[type="text"] {
@@ -297,9 +402,12 @@ textarea:focus {
 }
 
 .row-actions {
-    display: flex;
-    gap: 0.45rem;
-    justify-content: flex-end;
+    white-space: nowrap;
+    text-align: right;
+}
+
+.row-actions .btn + .btn {
+    margin-left: 0.45rem;
 }
 
 .btn.drag-handle {
@@ -335,6 +443,23 @@ textarea:focus {
 
 .execution-note-form .btn {
     margin-top: 0.5rem;
+}
+
+.tag-management-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.tag-management-row .tag-badge {
+    flex-shrink: 0;
+}
+
+.tag-create-form .btn,
+.tag-edit-form .btn {
+    flex: 0 0 auto;
+    white-space: nowrap;
 }
 
 .btn,
@@ -469,6 +594,28 @@ input[type="submit"].btn-primary:hover {
 
     .content-card {
         padding: 1rem;
+    }
+
+    .top-nav-inner,
+    .nav-left,
+    .tag-management-row,
+    .tag-create-form,
+    .tag-edit-form,
+    .tag-filter,
+    .search-form,
+    .tag-selection-header {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .tag-edit-form,
+    .tag-create-form {
+        width: 100%;
+    }
+
+    .tag-create-form .btn,
+    .tag-edit-form .btn {
+        width: 100%;
     }
 
     .items-table,

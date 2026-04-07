@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        SELECT\n            users.id as \"id: uuid::Uuid\",\n            users.name,\n            users.is_admin,\n            users.password_hash\n        FROM user_sessions\n        INNER JOIN users ON users.id = user_sessions.user_id\n        WHERE user_sessions.id = $1\n            AND user_sessions.created_at > $2\n        LIMIT 1\n        ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id: uuid::Uuid",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "name",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "is_admin",
+        "ordinal": 2,
+        "type_info": "Integer"
+      },
+      {
+        "name": "password_hash",
+        "ordinal": 3,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "9b906bff452c3b4e6fec9e8c2f43542fc4492af39e85051189d44bb47863df03"
+}

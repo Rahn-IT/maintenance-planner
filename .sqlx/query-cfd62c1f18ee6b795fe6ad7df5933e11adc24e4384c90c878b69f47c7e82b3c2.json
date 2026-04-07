@@ -1,0 +1,32 @@
+{
+  "db_name": "SQLite",
+  "query": "\n                SELECT\n                    id as \"id: uuid::Uuid\",\n                    name,\n                    deleted_at as \"deleted_at?\"\n                FROM action_plans\n                WHERE deleted_at > 0\n                ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id: uuid::Uuid",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "name",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "deleted_at?",
+        "ordinal": 2,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "cfd62c1f18ee6b795fe6ad7df5933e11adc24e4384c90c878b69f47c7e82b3c2"
+}

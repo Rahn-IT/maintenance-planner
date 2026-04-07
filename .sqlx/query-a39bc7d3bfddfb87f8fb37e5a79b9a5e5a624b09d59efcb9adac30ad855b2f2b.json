@@ -1,0 +1,32 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT\n                action_item_executions.order_index as \"order_index!\",\n                actions.name as \"action_name!\",\n                action_item_executions.finished as \"finished?\"\n            FROM action_item_executions\n            INNER JOIN actions ON actions.id = action_item_executions.action\n            WHERE action_item_executions.action_plan_execution = $1\n            ORDER BY action_item_executions.order_index ASC\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "order_index!",
+        "ordinal": 0,
+        "type_info": "Integer"
+      },
+      {
+        "name": "action_name!",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "finished?",
+        "ordinal": 2,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "a39bc7d3bfddfb87f8fb37e5a79b9a5e5a624b09d59efcb9adac30ad855b2f2b"
+}

@@ -21,6 +21,11 @@
 {% block content %}
 <div class="details-card">
     <div class="plan-name">{{ name }}</div>
+    <div class="tag-list">
+        {% for tag in tags %}
+        <span class="tag-badge" style="{{ tag.color_style }}">{{ tag.name }}</span>
+        {% endfor %}
+    </div>
     {% if is_deleted %}
     <p class="muted">Deleted: {{ deleted_at_display }}</p>
     {% endif %}

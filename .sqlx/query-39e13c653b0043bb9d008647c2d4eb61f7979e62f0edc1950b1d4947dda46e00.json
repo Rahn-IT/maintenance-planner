@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        SELECT\n            id as \"id: uuid::Uuid\",\n            name,\n            is_admin,\n            password_hash\n        FROM users\n        ORDER BY name ASC\n        ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id: uuid::Uuid",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "name",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "is_admin",
+        "ordinal": 2,
+        "type_info": "Integer"
+      },
+      {
+        "name": "password_hash",
+        "ordinal": 3,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "39e13c653b0043bb9d008647c2d4eb61f7979e62f0edc1950b1d4947dda46e00"
+}

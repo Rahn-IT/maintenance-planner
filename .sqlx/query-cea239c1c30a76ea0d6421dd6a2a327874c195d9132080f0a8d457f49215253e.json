@@ -1,0 +1,44 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT\n                action_plan_executions.id as \"id!: uuid::Uuid\",\n                action_plans.name as \"action_plan_name!\",\n                action_plan_executions.started as \"started!\",\n                action_plan_executions.finished as \"finished!\",\n                action_plan_executions.note\n            FROM action_plan_executions\n            INNER JOIN action_plans ON action_plans.id = action_plan_executions.action_plan\n            WHERE action_plan_executions.finished > 0\n            ORDER BY action_plan_executions.finished DESC\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!: uuid::Uuid",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "action_plan_name!",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "started!",
+        "ordinal": 2,
+        "type_info": "Integer"
+      },
+      {
+        "name": "finished!",
+        "ordinal": 3,
+        "type_info": "Integer"
+      },
+      {
+        "name": "note",
+        "ordinal": 4,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      true,
+      false,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "cea239c1c30a76ea0d6421dd6a2a327874c195d9132080f0a8d457f49215253e"
+}

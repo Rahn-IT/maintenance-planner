@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        DELETE FROM action_plan_executions\n        WHERE id = $1\n            AND (finished IS NULL OR finished <= 0)\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "d5bd8206bd87408bcb48d844a29c39dd8e568e59165219a1c41b1a5f811e0af2"
+}

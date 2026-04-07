@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        SELECT action as \"action_id: uuid::Uuid\", order_index\n        FROM action_items\n        WHERE action_plan = $1\n        ORDER BY order_index ASC\n        ",
+  "describe": {
+    "columns": [
+      {
+        "name": "action_id: uuid::Uuid",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "order_index",
+        "ordinal": 1,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "517240070e1f729bd2b20ea5e2361916dbb6fccd85b183f4d8aa852f47f8c9bb"
+}

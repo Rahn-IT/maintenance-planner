@@ -1,0 +1,25 @@
+{% extends 'layout.html' %} {% block title %} Tags {% endblock %}
+{% block top_actions %}
+<form method="post" action="/tags/new" class="tag-create-form">
+    <input type="text" name="name" placeholder="New tag name" />
+    <button class="btn btn-primary" type="submit">Add Tag</button>
+</form>
+{% endblock %}
+{% block content %}
+<div class="plan-list">
+    {% for tag in tags %}
+    <div class="plan-card">
+        <div class="tag-management-row">
+            <span class="tag-badge" style="{{ tag.color_style }}">{{ tag.name }}</span>
+            <form method="post" action="/tags/{{ tag.id }}/edit" class="tag-edit-form">
+                <input type="text" name="name" value="{{ tag.name }}" aria-label="Edit tag {{ tag.name }}" />
+                <button class="btn" type="submit">Save</button>
+            </form>
+            <a class="btn btn-danger" href="/tags/{{ tag.id }}/delete">Delete</a>
+        </div>
+    </div>
+    {% else %}
+    <p class="muted">No tags yet. Create your first one.</p>
+    {% endfor %}
+</div>
+{% endblock %}

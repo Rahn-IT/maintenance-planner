@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM tags",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": []
+  },
+  "hash": "da1939a1f11e6099f6262cd654f663cba3857c9cd41f46ecd48108dcb5ff2fb8"
+}

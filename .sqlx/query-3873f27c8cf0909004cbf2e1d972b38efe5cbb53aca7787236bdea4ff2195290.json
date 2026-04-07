@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        SELECT\n            tags.id as \"id: uuid::Uuid\",\n            tags.name\n        FROM action_plan_tags\n        INNER JOIN tags ON tags.id = action_plan_tags.tag\n        WHERE action_plan_tags.action_plan = $1\n        ORDER BY tags.name COLLATE NOCASE ASC\n        ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id: uuid::Uuid",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "name",
+        "ordinal": 1,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "3873f27c8cf0909004cbf2e1d972b38efe5cbb53aca7787236bdea4ff2195290"
+}

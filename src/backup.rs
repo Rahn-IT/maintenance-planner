@@ -53,6 +53,18 @@ pub async fn export_json(
 
     let mut action_plans = Vec::with_capacity(plans.len());
     for plan in plans {
+        let tags = sqlx::query!(
+            r#"
+            SELECT tag as "tag: uuid::Uuid"
+            FROM action_plan_tags
+            WHERE action_plan = $1
+            ORDER BY tag ASC
+            "#,
+            plan.id
+        )
+        .fetch_all(&state.db)
+        .await?;
+
         let items = sqlx::query!(
             r#"
             SELECT
@@ -72,6 +84,7 @@ pub async fn export_json(
             id: plan.id,
             name: plan.name,
             deleted_at: plan.deleted_at,
+            tag_ids: tags.into_iter().map(|tag| tag.tag).collect(),
             items: items
                 .into_iter()
                 .map(|item| BackupPlanItem {
@@ -132,9 +145,28 @@ pub async fn export_json(
         });
     }
 
+    let tags = sqlx::query!(
+        r#"
+        SELECT
+            id as "id: uuid::Uuid",
+            name
+        FROM tags
+        ORDER BY name COLLATE NOCASE ASC
+        "#
+    )
+    .fetch_all(&state.db)
+    .await?;
+
     let backup = BackupFile {
-        version: 1,
+        version: 2,
         exported_at_unix: unix_now(),
+        tags: tags
+            .into_iter()
+            .map(|tag| BackupTag {
+                id: tag.id,
+                name: tag.name,
+            })
+            .collect(),
         action_plans,
         action_plan_executions,
     };
@@ -185,7 +217,7 @@ pub async fn import_json(
         }
     };
 
-    if backup.version != 1 {
+    if backup.version != 1 && backup.version != 2 {
         return render_backup_page(
             &state,
             Some(BackupNotice::error(format!(
@@ -210,6 +242,56 @@ pub async fn import_json(
         }
     }
 
+    let mut tag_ids = std::collections::HashSet::with_capacity(backup.tags.len());
+    let mut tag_names = std::collections::HashSet::with_capacity(backup.tags.len());
+    for tag in &backup.tags {
+        if !tag_ids.insert(tag.id) {
+            return render_backup_page(
+                &state,
+                Some(BackupNotice::error(format!(
+                    "Duplicate tag id in backup: {}",
+                    tag.id
+                ))),
+                current_user.is_admin,
+            );
+        }
+
+        let normalized = tag.name.trim().to_lowercase();
+        if normalized.is_empty() {
+            return render_backup_page(
+                &state,
+                Some(BackupNotice::error("Tag names cannot be empty.")),
+                current_user.is_admin,
+            );
+        }
+
+        if !tag_names.insert(normalized) {
+            return render_backup_page(
+                &state,
+                Some(BackupNotice::error(format!(
+                    "Duplicate tag name in backup: {}",
+                    tag.name
+                ))),
+                current_user.is_admin,
+            );
+        }
+    }
+
+    for plan in &backup.action_plans {
+        for tag_id in &plan.tag_ids {
+            if !tag_ids.contains(tag_id) {
+                return render_backup_page(
+                    &state,
+                    Some(BackupNotice::error(format!(
+                        "Action plan {} references unknown tag {}",
+                        plan.id, tag_id
+                    ))),
+                    current_user.is_admin,
+                );
+            }
+        }
+    }
+
     for execution in &backup.action_plan_executions {
         if !plan_ids.contains(&execution.action_plan) {
             return render_backup_page(
@@ -231,17 +313,31 @@ pub async fn import_json(
     sqlx::query!("DELETE FROM action_plan_executions")
         .execute(&mut *tx)
         .await?;
+    sqlx::query!("DELETE FROM action_plan_tags")
+        .execute(&mut *tx)
+        .await?;
     sqlx::query!("DELETE FROM action_items")
         .execute(&mut *tx)
         .await?;
     sqlx::query!("DELETE FROM action_plans")
         .execute(&mut *tx)
         .await?;
+    sqlx::query!("DELETE FROM tags").execute(&mut *tx).await?;
     sqlx::query!("DELETE FROM actions")
         .execute(&mut *tx)
         .await?;
 
     let mut action_by_name: HashMap<String, Uuid> = HashMap::new();
+
+    for tag in &backup.tags {
+        sqlx::query!(
+            "INSERT INTO tags (id, name) VALUES ($1, $2)",
+            tag.id,
+            tag.name
+        )
+        .execute(&mut *tx)
+        .await?;
+    }
 
     for plan in &backup.action_plans {
         sqlx::query!(
@@ -252,6 +348,16 @@ pub async fn import_json(
         )
         .execute(&mut *tx)
         .await?;
+
+        for tag_id in &plan.tag_ids {
+            sqlx::query!(
+                "INSERT INTO action_plan_tags (action_plan, tag) VALUES ($1, $2)",
+                plan.id,
+                tag_id
+            )
+            .execute(&mut *tx)
+            .await?;
+        }
 
         for item in &plan.items {
             let action_id =
@@ -356,8 +462,16 @@ fn unix_now() -> i64 {
 pub struct BackupFile {
     version: i64,
     exported_at_unix: i64,
+    #[serde(default)]
+    tags: Vec<BackupTag>,
     action_plans: Vec<BackupActionPlan>,
     action_plan_executions: Vec<BackupExecution>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct BackupTag {
+    id: Uuid,
+    name: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -365,6 +479,8 @@ pub struct BackupActionPlan {
     id: Uuid,
     name: String,
     deleted_at: Option<i64>,
+    #[serde(default)]
+    tag_ids: Vec<Uuid>,
     items: Vec<BackupPlanItem>,
 }
 

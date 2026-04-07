@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        SELECT COUNT(*) as \"count!: i64\"\n        FROM action_item_executions\n        WHERE action_plan_execution = $1\n            AND (finished IS NULL OR finished <= 0)\n        ",
+  "describe": {
+    "columns": [
+      {
+        "name": "count!: i64",
+        "ordinal": 0,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "158426d6865d9c5003e198b2f906a5e972898eefc2c4de5711cfc759bfdbe195"
+}

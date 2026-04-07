@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO action_plan_tags (action_plan, tag) VALUES ($1, $2)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "b2d86150c212baf9b389fc47d52acf79a438d3f7b5829dd27a05a1245e7cd0be"
+}

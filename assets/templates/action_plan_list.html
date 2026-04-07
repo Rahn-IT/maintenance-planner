@@ -1,15 +1,35 @@
 {% extends 'layout.html' %} {% block title %} Action Plans {% endblock %}
 {% block top_actions %}
 <a class="btn btn-primary" href="/action_plan/new">New Action Plan</a>
-<a class="btn {% if not show_deleted %}is-active{% endif %}" href="/?sort={{ current_sort }}&deleted=false&q={{ search_query }}">Active Plans</a>
-<a class="btn {% if show_deleted %}is-active{% endif %}" href="/?sort={{ current_sort }}&deleted=true&q={{ search_query }}">Deleted Plans</a>
+<a class="btn {% if not show_deleted %}is-active{% endif %}" href="/?sort={{ current_sort }}&deleted=false&q={{ search_query }}&tag_id={{ selected_tag_id }}">Active Plans</a>
+<a class="btn {% if show_deleted %}is-active{% endif %}" href="/?sort={{ current_sort }}&deleted=true&q={{ search_query }}&tag_id={{ selected_tag_id }}">Deleted Plans</a>
 <span class="muted">Sort:</span>
-<a class="btn {% if current_sort == 'name' %}is-active{% endif %}" href="/?sort=name&deleted={{ show_deleted }}&q={{ search_query }}">A-Z</a>
-<a class="btn {% if current_sort == 'last_execution_desc' %}is-active{% endif %}" href="/?sort=last_execution_desc&deleted={{ show_deleted }}&q={{ search_query }}">Newest Execution</a>
-<a class="btn {% if current_sort == 'last_execution_asc' %}is-active{% endif %}" href="/?sort=last_execution_asc&deleted={{ show_deleted }}&q={{ search_query }}">Oldest Execution</a>
+<a class="btn {% if current_sort == 'name' %}is-active{% endif %}" href="/?sort=name&deleted={{ show_deleted }}&q={{ search_query }}&tag_id={{ selected_tag_id }}">A-Z</a>
+<a class="btn {% if current_sort == 'last_execution_desc' %}is-active{% endif %}" href="/?sort=last_execution_desc&deleted={{ show_deleted }}&q={{ search_query }}&tag_id={{ selected_tag_id }}">Newest Execution</a>
+<a class="btn {% if current_sort == 'last_execution_asc' %}is-active{% endif %}" href="/?sort=last_execution_asc&deleted={{ show_deleted }}&q={{ search_query }}&tag_id={{ selected_tag_id }}">Oldest Execution</a>
 <form method="get" action="/" class="search-form">
     <input type="hidden" name="sort" value="{{ current_sort }}" />
     <input type="hidden" name="deleted" value="{{ show_deleted }}" />
+    <div class="tag-filter js-tag-filter" data-tag-search-url="/tags/search">
+        <div class="tag-filter-selected js-tag-filter-selected">
+            {% if selected_tag %}
+            <span class="tag-badge tag-filter-pill" style="{{ selected_tag.color_style }}" data-tag-id="{{ selected_tag.id }}">
+                <span>{{ selected_tag.name }}</span>
+                <button type="button" class="tag-pill-remove js-tag-filter-clear" aria-label="Clear tag filter">x</button>
+            </span>
+            {% endif %}
+        </div>
+        <div class="tag-filter-input-wrap autocomplete-cell">
+            <input
+                type="text"
+                class="js-tag-filter-input"
+                placeholder="Filter by tag"
+                autocomplete="off"
+            />
+            <ul class="action-search-menu js-tag-filter-menu" role="listbox"></ul>
+        </div>
+        <input type="hidden" name="tag_id" value="{{ selected_tag_id }}" class="js-tag-filter-hidden" />
+    </div>
     <input type="text" name="q" value="{{ search_query }}" placeholder="Search plan title" />
     <button class="btn" type="submit">Search</button>
 </form>
@@ -24,6 +44,11 @@
             aria-label="Open action plan {{ action_plan.name }}"
         ></a>
         <h2>{{ action_plan.name }}</h2>
+        <div class="tag-list">
+            {% for tag in action_plan.tags %}
+            <span class="tag-badge" style="{{ tag.color_style }}">{{ tag.name }}</span>
+            {% endfor %}
+        </div>
         {% if show_deleted %}
         <p class="muted">This action plan is deleted.</p>
         {% elif action_plan.active_execution_id %}
@@ -40,4 +65,5 @@
     <p class="muted">{% if show_deleted %}No deleted action plans.{% else %}No action plans yet. Create your first one.{% endif %}</p>
     {% endfor %}
 </div>
+<script src="/static/tag_filter.js"></script>
 {% endblock %}

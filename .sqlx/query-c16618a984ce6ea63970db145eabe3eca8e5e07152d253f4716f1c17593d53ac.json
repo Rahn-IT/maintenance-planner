@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT tag as \"tag: uuid::Uuid\"\n            FROM action_plan_tags\n            WHERE action_plan = $1\n            ORDER BY tag ASC\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "tag: uuid::Uuid",
+        "ordinal": 0,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "c16618a984ce6ea63970db145eabe3eca8e5e07152d253f4716f1c17593d53ac"
+}

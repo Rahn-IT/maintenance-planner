@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        SELECT finished as \"finished?\"\n        FROM action_plan_executions\n        WHERE id = $1\n        ",
+  "describe": {
+    "columns": [
+      {
+        "name": "finished?",
+        "ordinal": 0,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "c5705247b0410a291b2f638f14ca1de7960412cf12042c5a2ea2e36970631c91"
+}

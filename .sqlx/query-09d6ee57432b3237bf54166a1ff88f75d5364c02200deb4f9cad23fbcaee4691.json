@@ -1,0 +1,32 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        SELECT\n            id as \"id!: uuid::Uuid\",\n            started as \"started!\",\n            note\n        FROM action_plan_executions\n        WHERE action_plan = $1\n            AND (finished IS NULL OR finished <= 0)\n        ORDER BY started DESC\n        ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!: uuid::Uuid",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "started!",
+        "ordinal": 1,
+        "type_info": "Integer"
+      },
+      {
+        "name": "note",
+        "ordinal": 2,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true,
+      false,
+      true
+    ]
+  },
+  "hash": "09d6ee57432b3237bf54166a1ff88f75d5364c02200deb4f9cad23fbcaee4691"
+}

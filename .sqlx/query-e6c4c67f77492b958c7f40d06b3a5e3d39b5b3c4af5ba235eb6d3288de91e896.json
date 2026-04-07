@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        SELECT actions.name as \"name!\"\n        FROM action_items\n        INNER JOIN actions ON actions.id = action_items.action\n        WHERE action_items.action_plan = $1\n        ORDER BY action_items.order_index ASC\n        ",
+  "describe": {
+    "columns": [
+      {
+        "name": "name!",
+        "ordinal": 0,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "e6c4c67f77492b958c7f40d06b3a5e3d39b5b3c4af5ba235eb6d3288de91e896"
+}

@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT id as \"id: uuid::Uuid\"\n            FROM action_plan_executions\n            WHERE action_plan = $1\n                AND (finished IS NULL OR finished <= 0)\n            ORDER BY started DESC\n            LIMIT 1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id: uuid::Uuid",
+        "ordinal": 0,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "53a7eab44bf7ea97b622321cb2cbbd04dfc2d28627ac323a2e3abf6d2cab1d0e"
+}

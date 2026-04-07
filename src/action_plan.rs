@@ -7,10 +7,13 @@ use axum_extra::extract::Form;
 use serde::{Deserialize, Serialize};
 use sqlx::prelude::FromRow;
 use sqlx::{Sqlite, Transaction};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
 
-use crate::{AppError, AppState, CurrentUser, format_unix_timestamp};
+use crate::{
+    AppError, AppState, CurrentUser, format_unix_timestamp,
+    tags::{self, TagBadge},
+};
 
 #[derive(FromRow, Debug, Serialize)]
 pub struct ActionPlan {
@@ -25,6 +28,8 @@ pub struct ActionPlanList {
     current_sort: String,
     show_deleted: bool,
     search_query: String,
+    selected_tag: Option<TagBadge>,
+    selected_tag_id: String,
     is_admin: bool,
 }
 
@@ -32,6 +37,7 @@ pub struct ActionPlanList {
 pub struct ActionPlanListItem {
     id: Uuid,
     name: String,
+    tags: Vec<TagBadge>,
     active_execution_id: Option<Uuid>,
     last_finished_display: Option<String>,
 }
@@ -44,74 +50,14 @@ pub async fn index(
     let sort = query.sort.unwrap_or_else(|| "name".to_string());
     let show_deleted = query.deleted.unwrap_or(false);
     let search_query = query.q.unwrap_or_default().trim().to_string();
-
-    let action_plans = if show_deleted {
-        if search_query.is_empty() {
-            sqlx::query_as!(
-                ActionPlan,
-                r#"
-                SELECT
-                    id as "id: uuid::Uuid",
-                    name,
-                    deleted_at as "deleted_at?"
-                FROM action_plans
-                WHERE deleted_at > 0
-                "#
-            )
-            .fetch_all(&state.db)
-            .await?
-        } else {
-            let search_pattern = format!("%{}%", search_query);
-            sqlx::query_as!(
-                ActionPlan,
-                r#"
-                SELECT
-                    id as "id: uuid::Uuid",
-                    name,
-                    deleted_at as "deleted_at?"
-                FROM action_plans
-                WHERE deleted_at > 0
-                    AND LOWER(name) LIKE LOWER($1)
-                "#,
-                search_pattern
-            )
-            .fetch_all(&state.db)
-            .await?
-        }
+    let selected_tag_id = query.tag_id;
+    let selected_tag = if let Some(tag_id) = selected_tag_id {
+        tags::fetch_badge_by_id(&state.db, tag_id).await?
     } else {
-        if search_query.is_empty() {
-            sqlx::query_as!(
-                ActionPlan,
-                r#"
-                SELECT
-                    id as "id: uuid::Uuid",
-                    name,
-                    deleted_at as "deleted_at?"
-                FROM action_plans
-                WHERE deleted_at IS NULL OR deleted_at <= 0
-                "#
-            )
-            .fetch_all(&state.db)
-            .await?
-        } else {
-            let search_pattern = format!("%{}%", search_query);
-            sqlx::query_as!(
-                ActionPlan,
-                r#"
-                SELECT
-                    id as "id: uuid::Uuid",
-                    name,
-                    deleted_at as "deleted_at?"
-                FROM action_plans
-                WHERE (deleted_at IS NULL OR deleted_at <= 0)
-                    AND LOWER(name) LIKE LOWER($1)
-                "#,
-                search_pattern
-            )
-            .fetch_all(&state.db)
-            .await?
-        }
+        None
     };
+    let action_plans =
+        fetch_action_plans(&state, show_deleted, &search_query, selected_tag_id).await?;
 
     let mut action_plan_list = Vec::with_capacity(action_plans.len());
     for action_plan in action_plans {
@@ -159,6 +105,7 @@ pub async fn index(
         action_plan_list.push(ActionPlanListSortItem {
             id: action_plan.id,
             name: action_plan.name,
+            tags: tags::fetch_badges_for_plan(&state.db, action_plan.id).await?,
             active_execution_id: active_execution_id.flatten(),
             last_finished_display: last_finished.flatten().map(format_unix_timestamp),
             last_execution_unix: last_execution,
@@ -182,6 +129,7 @@ pub async fn index(
         .map(|item| ActionPlanListItem {
             id: item.id,
             name: item.name,
+            tags: item.tags,
             active_execution_id: item.active_execution_id,
             last_finished_display: item.last_finished_display,
         })
@@ -196,6 +144,10 @@ pub async fn index(
         current_sort: sort,
         show_deleted,
         search_query,
+        selected_tag_id: selected_tag_id
+            .map(|value| value.to_string())
+            .unwrap_or_default(),
+        selected_tag,
         is_admin: current_user.is_admin,
     })?;
 
@@ -212,6 +164,7 @@ pub async fn new_get(
         cancel_url: "/".to_string(),
         name: String::new(),
         items: Vec::new(),
+        available_tags: action_plan_tag_options(tags::fetch_all_badges(&state.db).await?, None),
         is_admin: current_user.is_admin,
     };
 
@@ -222,6 +175,7 @@ pub async fn new_get(
 pub struct ActionPlanForm {
     name: String,
     items: Option<Vec<String>>,
+    tag_ids: Option<Vec<Uuid>>,
 }
 
 pub async fn new_post(
@@ -286,6 +240,7 @@ pub async fn edit_get(
     )
     .fetch_all(&state.db)
     .await?;
+    let selected_tag_ids = tags::fetch_selected_tag_ids(&state.db, id).await?;
 
     let plan = ActionPlanEdit {
         id: Some(plan.id),
@@ -304,6 +259,10 @@ pub async fn edit_get(
         },
         name: plan.name,
         items,
+        available_tags: action_plan_tag_options(
+            tags::fetch_all_badges(&state.db).await?,
+            Some(selected_tag_ids),
+        ),
         is_admin: current_user.is_admin,
     };
 
@@ -342,6 +301,12 @@ async fn update_plan_items<'c>(
     form: ActionPlanForm,
     execution_id: Option<Uuid>,
 ) -> Result<Redirect, AppError> {
+    let ActionPlanForm {
+        name: _,
+        items,
+        tag_ids,
+    } = form;
+    let selected_tag_ids = normalize_tag_ids(tag_ids);
     let mut execution_state_by_name: HashMap<String, Option<i64>> = HashMap::new();
 
     if let Some(execution_id) = execution_id {
@@ -376,8 +341,24 @@ async fn update_plan_items<'c>(
     sqlx::query!("DELETE FROM action_items WHERE action_plan = $1", plan_id)
         .execute(&mut *tx)
         .await?;
+    sqlx::query!(
+        "DELETE FROM action_plan_tags WHERE action_plan = $1",
+        plan_id
+    )
+    .execute(&mut *tx)
+    .await?;
 
-    let normalized_items = normalize_items(form.items);
+    for tag_id in selected_tag_ids {
+        sqlx::query!(
+            "INSERT INTO action_plan_tags (action_plan, tag) VALUES ($1, $2)",
+            plan_id,
+            tag_id
+        )
+        .execute(&mut *tx)
+        .await?;
+    }
+
+    let normalized_items = normalize_items(items);
 
     for (order, item) in normalized_items.iter().enumerate() {
         let action = sqlx::query!("SELECT id FROM actions WHERE name = $1", item)
@@ -497,6 +478,7 @@ pub async fn show_action_plan(
     )
     .fetch_all(&state.db)
     .await?;
+    let tags = tags::fetch_badges_for_plan(&state.db, id).await?;
 
     let active_execution_rows = sqlx::query_as!(
         PlanExecutionActiveRow,
@@ -557,6 +539,7 @@ pub async fn show_action_plan(
     let plan = ActionPlanShow {
         id: plan.id,
         name: plan.name,
+        tags,
         is_deleted: plan.deleted_at.map(|value| value > 0).unwrap_or(false),
         deleted_at_display: plan
             .deleted_at
@@ -639,6 +622,7 @@ pub struct ActionPlanEdit {
     cancel_url: String,
     name: String,
     items: Vec<ActionPlanItem>,
+    available_tags: Vec<ActionPlanTagOption>,
     is_admin: bool,
 }
 
@@ -646,6 +630,7 @@ pub struct ActionPlanEdit {
 pub struct ActionPlanShow {
     id: Uuid,
     name: String,
+    tags: Vec<TagBadge>,
     is_deleted: bool,
     deleted_at_display: Option<String>,
     items: Vec<ActionPlanItem>,
@@ -658,6 +643,14 @@ pub struct ActionPlanShow {
 #[derive(Serialize)]
 pub struct ActionPlanItem {
     pub name: String,
+}
+
+#[derive(Serialize)]
+pub struct ActionPlanTagOption {
+    id: Uuid,
+    name: String,
+    color_style: String,
+    selected: bool,
 }
 
 #[derive(FromRow, Serialize)]
@@ -709,6 +702,32 @@ fn normalize_items(items: Option<Vec<String>>) -> Vec<String> {
         .collect()
 }
 
+fn normalize_tag_ids(tag_ids: Option<Vec<Uuid>>) -> Vec<Uuid> {
+    let mut unique = HashSet::new();
+
+    tag_ids
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|tag_id| unique.insert(*tag_id))
+        .collect()
+}
+
+fn action_plan_tag_options(
+    tags: Vec<TagBadge>,
+    selected: Option<HashSet<Uuid>>,
+) -> Vec<ActionPlanTagOption> {
+    let selected = selected.unwrap_or_default();
+
+    tags.into_iter()
+        .map(|tag| ActionPlanTagOption {
+            id: tag.id,
+            name: tag.name,
+            color_style: tag.color_style,
+            selected: selected.contains(&tag.id),
+        })
+        .collect()
+}
+
 #[derive(Debug, Default, Deserialize)]
 pub struct EditContext {
     execution_id: Option<Uuid>,
@@ -719,11 +738,13 @@ pub struct ActionPlanListQuery {
     sort: Option<String>,
     deleted: Option<bool>,
     q: Option<String>,
+    tag_id: Option<Uuid>,
 }
 
 struct ActionPlanListSortItem {
     id: Uuid,
     name: String,
+    tags: Vec<TagBadge>,
     active_execution_id: Option<Uuid>,
     last_finished_display: Option<String>,
     last_execution_unix: Option<i64>,
@@ -793,4 +814,174 @@ fn unix_now() -> i64 {
         .duration_since(std::time::UNIX_EPOCH)
         .map(|duration| duration.as_secs() as i64)
         .unwrap_or(0)
+}
+
+async fn fetch_action_plans(
+    state: &AppState,
+    show_deleted: bool,
+    search_query: &str,
+    selected_tag_id: Option<Uuid>,
+) -> Result<Vec<ActionPlan>, AppError> {
+    match (show_deleted, search_query.is_empty(), selected_tag_id) {
+        (true, true, None) => sqlx::query_as!(
+            ActionPlan,
+            r#"
+                SELECT
+                    id as "id: uuid::Uuid",
+                    name,
+                    deleted_at as "deleted_at?"
+                FROM action_plans
+                WHERE deleted_at > 0
+                "#
+        )
+        .fetch_all(&state.db)
+        .await
+        .map_err(AppError::from),
+        (true, false, None) => {
+            let search_pattern = format!("%{}%", search_query);
+            sqlx::query_as!(
+                ActionPlan,
+                r#"
+                SELECT
+                    id as "id: uuid::Uuid",
+                    name,
+                    deleted_at as "deleted_at?"
+                FROM action_plans
+                WHERE deleted_at > 0
+                    AND LOWER(name) LIKE LOWER($1)
+                "#,
+                search_pattern
+            )
+            .fetch_all(&state.db)
+            .await
+            .map_err(AppError::from)
+        }
+        (false, true, None) => sqlx::query_as!(
+            ActionPlan,
+            r#"
+                SELECT
+                    id as "id: uuid::Uuid",
+                    name,
+                    deleted_at as "deleted_at?"
+                FROM action_plans
+                WHERE deleted_at IS NULL OR deleted_at <= 0
+                "#
+        )
+        .fetch_all(&state.db)
+        .await
+        .map_err(AppError::from),
+        (false, false, None) => {
+            let search_pattern = format!("%{}%", search_query);
+            sqlx::query_as!(
+                ActionPlan,
+                r#"
+                SELECT
+                    id as "id: uuid::Uuid",
+                    name,
+                    deleted_at as "deleted_at?"
+                FROM action_plans
+                WHERE (deleted_at IS NULL OR deleted_at <= 0)
+                    AND LOWER(name) LIKE LOWER($1)
+                "#,
+                search_pattern
+            )
+            .fetch_all(&state.db)
+            .await
+            .map_err(AppError::from)
+        }
+        (true, true, Some(tag_id)) => sqlx::query_as!(
+            ActionPlan,
+            r#"
+                SELECT
+                    action_plans.id as "id: uuid::Uuid",
+                    action_plans.name,
+                    action_plans.deleted_at as "deleted_at?"
+                FROM action_plans
+                WHERE action_plans.deleted_at > 0
+                    AND EXISTS (
+                        SELECT 1
+                        FROM action_plan_tags
+                        WHERE action_plan_tags.action_plan = action_plans.id
+                            AND action_plan_tags.tag = $1
+                    )
+                "#,
+            tag_id
+        )
+        .fetch_all(&state.db)
+        .await
+        .map_err(AppError::from),
+        (true, false, Some(tag_id)) => {
+            let search_pattern = format!("%{}%", search_query);
+            sqlx::query_as!(
+                ActionPlan,
+                r#"
+                SELECT
+                    action_plans.id as "id: uuid::Uuid",
+                    action_plans.name,
+                    action_plans.deleted_at as "deleted_at?"
+                FROM action_plans
+                WHERE action_plans.deleted_at > 0
+                    AND LOWER(action_plans.name) LIKE LOWER($1)
+                    AND EXISTS (
+                        SELECT 1
+                        FROM action_plan_tags
+                        WHERE action_plan_tags.action_plan = action_plans.id
+                            AND action_plan_tags.tag = $2
+                    )
+                "#,
+                search_pattern,
+                tag_id
+            )
+            .fetch_all(&state.db)
+            .await
+            .map_err(AppError::from)
+        }
+        (false, true, Some(tag_id)) => sqlx::query_as!(
+            ActionPlan,
+            r#"
+                SELECT
+                    action_plans.id as "id: uuid::Uuid",
+                    action_plans.name,
+                    action_plans.deleted_at as "deleted_at?"
+                FROM action_plans
+                WHERE (action_plans.deleted_at IS NULL OR action_plans.deleted_at <= 0)
+                    AND EXISTS (
+                        SELECT 1
+                        FROM action_plan_tags
+                        WHERE action_plan_tags.action_plan = action_plans.id
+                            AND action_plan_tags.tag = $1
+                    )
+                "#,
+            tag_id
+        )
+        .fetch_all(&state.db)
+        .await
+        .map_err(AppError::from),
+        (false, false, Some(tag_id)) => {
+            let search_pattern = format!("%{}%", search_query);
+            sqlx::query_as!(
+                ActionPlan,
+                r#"
+                SELECT
+                    action_plans.id as "id: uuid::Uuid",
+                    action_plans.name,
+                    action_plans.deleted_at as "deleted_at?"
+                FROM action_plans
+                WHERE (action_plans.deleted_at IS NULL OR action_plans.deleted_at <= 0)
+                    AND LOWER(action_plans.name) LIKE LOWER($1)
+                    AND EXISTS (
+                        SELECT 1
+                        FROM action_plan_tags
+                        WHERE action_plan_tags.action_plan = action_plans.id
+                            AND action_plan_tags.tag = $2
+                    )
+                "#,
+                search_pattern,
+                tag_id
+            )
+            .fetch_all(&state.db)
+            .await
+            .map_err(AppError::from)
+        }
+    }
 }

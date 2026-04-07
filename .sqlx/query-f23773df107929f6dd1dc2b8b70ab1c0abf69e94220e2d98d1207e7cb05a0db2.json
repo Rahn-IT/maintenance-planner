@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT finished as \"finished: i64\"\n            FROM action_plan_executions\n            WHERE action_plan = $1\n                AND finished > 0\n            ORDER BY finished DESC\n            LIMIT 1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "finished: i64",
+        "ordinal": 0,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "f23773df107929f6dd1dc2b8b70ab1c0abf69e94220e2d98d1207e7cb05a0db2"
+}

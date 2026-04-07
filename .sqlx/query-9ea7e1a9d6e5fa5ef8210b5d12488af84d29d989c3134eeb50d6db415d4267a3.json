@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        SELECT id as \"id: uuid::Uuid\"\n        FROM action_plans\n        WHERE id = $1\n            AND (deleted_at IS NULL OR deleted_at <= 0)\n        ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id: uuid::Uuid",
+        "ordinal": 0,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "9ea7e1a9d6e5fa5ef8210b5d12488af84d29d989c3134eeb50d6db415d4267a3"
+}

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO action_items (id, order_index, action_plan, action) VALUES ($1, $2, $3, $4)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "2afc9562c495dbf8aaf30a2fbc1a3e5bbb041f3696864d67fec03eb2ddd111c4"
+}

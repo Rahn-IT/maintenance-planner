@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        UPDATE action_plan_executions\n        SET note = $1\n        WHERE id = $2\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "12ab493c34e22de94aa2b405a8275d46f8887501d9e894915f1b8ea40d5f628f"
+}

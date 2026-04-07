@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT started as \"started: i64\"\n            FROM action_plan_executions\n            WHERE action_plan = $1\n            ORDER BY started DESC\n            LIMIT 1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "started: i64",
+        "ordinal": 0,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "49bf054391de1cf0d0455a4b9c092479e08c310b64fdc66fc86c0d9997220071"
+}

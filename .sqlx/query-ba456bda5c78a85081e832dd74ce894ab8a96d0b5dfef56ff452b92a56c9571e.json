@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM action_plan_executions",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": []
+  },
+  "hash": "ba456bda5c78a85081e832dd74ce894ab8a96d0b5dfef56ff452b92a56c9571e"
+}
