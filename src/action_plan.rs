@@ -744,34 +744,48 @@ pub async fn search_actions(
     Query(query): Query<ActionSearchQuery>,
 ) -> Result<Json<Vec<ActionSearchItem>>, AppError> {
     let q = query.q.unwrap_or_default().trim().to_string();
-    if q.is_empty() {
-        return Ok(Json(Vec::new()));
-    }
+    let actions = if q.is_empty() {
+        sqlx::query!(
+            r#"
+            SELECT
+                actions.name as "name!",
+                COUNT(DISTINCT action_items.action_plan) as "usage_count!: i64"
+            FROM actions
+            LEFT JOIN action_items ON action_items.action = actions.id
+            GROUP BY actions.id, actions.name
+            ORDER BY COUNT(DISTINCT action_items.action_plan) DESC, actions.name ASC
+            LIMIT 10
+            "#
+        )
+        .fetch_all(&state.db)
+        .await?
+        .into_iter()
+        .map(|row| ActionSearchItem { name: row.name })
+        .collect()
+    } else {
+        let pattern = format!("%{}%", q);
+        sqlx::query!(
+            r#"
+            SELECT
+                actions.name as "name!",
+                COUNT(DISTINCT action_items.action_plan) as "usage_count!: i64"
+            FROM actions
+            LEFT JOIN action_items ON action_items.action = actions.id
+            WHERE LOWER(actions.name) LIKE LOWER($1)
+            GROUP BY actions.id, actions.name
+            ORDER BY COUNT(DISTINCT action_items.action_plan) DESC, actions.name ASC
+            LIMIT 10
+            "#,
+            pattern
+        )
+        .fetch_all(&state.db)
+        .await?
+        .into_iter()
+        .map(|row| ActionSearchItem { name: row.name })
+        .collect()
+    };
 
-    let pattern = format!("%{}%", q);
-    let actions = sqlx::query!(
-        r#"
-        SELECT
-            actions.name as "name!",
-            COUNT(DISTINCT action_items.action_plan) as "usage_count!: i64"
-        FROM actions
-        LEFT JOIN action_items ON action_items.action = actions.id
-        WHERE LOWER(actions.name) LIKE LOWER($1)
-        GROUP BY actions.id, actions.name
-        ORDER BY COUNT(DISTINCT action_items.action_plan) DESC, actions.name ASC
-        LIMIT 10
-        "#,
-        pattern
-    )
-    .fetch_all(&state.db)
-    .await?;
-
-    Ok(Json(
-        actions
-            .into_iter()
-            .map(|row| ActionSearchItem { name: row.name })
-            .collect(),
-    ))
+    Ok(Json(actions))
 }
 
 fn unix_now() -> i64 {
