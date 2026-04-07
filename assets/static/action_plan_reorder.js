@@ -23,7 +23,7 @@ window.addEventListener("load", function () {
     }
 
     row.dataset.reorderBound = "true";
-    row.draggable = true;
+    row.draggable = false;
 
     row.addEventListener("dragstart", function (event) {
       // Only start drag when user grabbed the explicit handle button.
@@ -42,6 +42,7 @@ window.addEventListener("load", function () {
     row.addEventListener("dragend", function () {
       row.classList.remove("is-dragging");
       row.dataset.dragReady = "false";
+      row.draggable = false;
       draggingRow = null;
       clearDropMarkers();
     });
@@ -50,12 +51,15 @@ window.addEventListener("load", function () {
     if (handle) {
       handle.addEventListener("mousedown", function () {
         row.dataset.dragReady = "true";
+        row.draggable = true;
       });
       handle.addEventListener("mouseup", function () {
         row.dataset.dragReady = "false";
+        row.draggable = false;
       });
       handle.addEventListener("mouseleave", function () {
         row.dataset.dragReady = "false";
+        row.draggable = false;
       });
     }
   };

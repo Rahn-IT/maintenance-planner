@@ -137,9 +137,7 @@ window.initializeActionItemSearch = function () {
     });
 
     input.addEventListener("focus", function () {
-      if (input.value.trim()) {
-        search();
-      }
+      search();
     });
 
     input.addEventListener("keydown", function (event) {
