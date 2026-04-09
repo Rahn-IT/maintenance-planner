@@ -738,6 +738,7 @@ pub struct ActionPlanListQuery {
     sort: Option<String>,
     deleted: Option<bool>,
     q: Option<String>,
+    #[serde(default, deserialize_with = "deserialize_optional_uuid")]
     tag_id: Option<Uuid>,
 }
 
@@ -814,6 +815,19 @@ fn unix_now() -> i64 {
         .duration_since(std::time::UNIX_EPOCH)
         .map(|duration| duration.as_secs() as i64)
         .unwrap_or(0)
+}
+
+fn deserialize_optional_uuid<'de, D>(deserializer: D) -> Result<Option<Uuid>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = Option::<String>::deserialize(deserializer)?;
+    match value.as_deref().map(str::trim) {
+        None | Some("") => Ok(None),
+        Some(value) => Uuid::parse_str(value)
+            .map(Some)
+            .map_err(serde::de::Error::custom),
+    }
 }
 
 async fn fetch_action_plans(
